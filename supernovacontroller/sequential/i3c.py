@@ -255,6 +255,48 @@ class SupernovaI3CBlockingInterface:
 
         return result
 
+    def find_target_device_by_pid(self, pid):
+        """
+        Retrieves the target device from the I3C bus with the specified PID.
+
+        Returns:
+        tuple: A tuple containing two elements:
+            - The first element is a Boolean indicating the success (True) or failure (False) of the operation.
+            - The second element is either a dictionary, or an error message detailing the failure,
+                obtained from the device's response.
+                The dictionary entry contains formatted information about the device, including:
+                - 'static_address': The static address in hexadecimal format.
+                - 'dynamic_address': The dynamic address in hexadecimal format.
+                - 'bcr': The Bus Characteristics Register value.
+                - 'dcr': The Device Characteristics Register.
+                - 'pid': Unique ID (Provisional ID) containing a manufacturer ID, a part ID and an instance ID.
+        """
+        try:
+            responses = self.controller.sync_submit([
+                lambda id: self.driver.i3cGetTargetDeviceTable(id)
+            ])
+        except Exception as e:
+            raise BackendError(original_exception=e) from e
+
+        filtered_devices = list(filter(lambda device: device["pid"][::-1] == pid, responses[0]["table"]))
+
+        if(len(filtered_devices) == 0):
+            return (False, None)
+        
+        target_info = filtered_devices[0]
+        static_address = target_info["staticAddress"]
+        dynamic_address = target_info["dynamicAddress"]
+        bcr = int(target_info["bcr"]["value"][2][2:4], 16)
+        dcr = target_info["dcr"]
+        pid = target_info["pid"][::-1] # Reversing using list slicing
+        return (True, {
+            "static_address" : static_address,
+            "dynamic_address" : dynamic_address,
+            "bcr" : bcr,
+            "dcr" : dcr,
+            "pid" : pid
+        })
+
     def toggle_ibi(self, target_address, enable: bool):
         """
         Toggles the In-Band Interrupt (IBI) feature for a specified target device on the I3C bus.
