@@ -1,12 +1,5 @@
 from supernovacontroller.sequential import SupernovaDevice
 
-# Function to find the first item with the matching PID
-def find_matching_item(data, target_pid):
-    for item in data:
-        if item.get('pid') == target_pid:
-            return item
-    return None
-
 def main():
     """
     Basic example to illustrate i3c protocol usage with SupernovaController.
@@ -16,7 +9,7 @@ def main():
     - Create I3C Interface: Creates an I3C interface for communication.
     - Set I3C Parameters and Initialize Bus: Sets transfer rates and initializes the I3C bus with a specific voltage level.
     - Discover Targets on I3C Bus: Fetches a list of devices present on the I3C bus.
-    - Find Specific ICM Device: Uses find_matching_item to find a specific device based on its PID.
+    - Find Specific ICM Device: Uses find_target_device_by_pid to find a specific device based on its PID.
     - Perform CCC (Common Command Code) Transfers: Sends various CCC commands to the target device to get or set parameters.
     - Write/Read Transfers: Demonstrates write and read operations over the I3C bus.
     - Reset I3C Bus and Targets: Resets the bus and fetches the target list again.
@@ -34,17 +27,15 @@ def main():
         print("I couldn't initialize the bus. Are you sure there's any target connected?")
         exit(1)
 
-    (_, targets) = i3c.targets()
-
     # Target PID in hexadecimal format
     target_pid = [0x00, 0x00, 0x00, 0x00, 0x6A, 0x04]
 
     # IMPORTANT: Remove the following line when the SupernovaSDK is updated to return a list of numbers
     target_pid = [f"0x{num:02x}" for num in target_pid]
 
-    icm_device = find_matching_item(targets, target_pid)
+    (deviceFound, icm_device) = i3c.find_target_device_by_pid(target_pid)
 
-    if icm_device is None:
+    if deviceFound is False:
         print("ICM device not found in the I3C bus")
         exit(1)
 

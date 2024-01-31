@@ -1,13 +1,6 @@
 from supernovacontroller.sequential import SupernovaDevice
 from threading import Event
 
-# Function to find the first item with the matching PID
-def find_matching_item(data, target_pid):
-    for item in data:
-        if item.get('pid') == target_pid:
-            return item
-    return None
-
 counter = 0
 last_ibi = Event()
 
@@ -25,17 +18,15 @@ def main():
         print("I couldn't initialize the bus. Are you sure there's any target connected?")
         exit(1)
 
-    (_, targets) = i3c.targets()
-
     # Target PID in hexadecimal format
     target_pid = [0x00, 0x00, 0x00, 0x00, 0x6A, 0x04]
 
     # IMPORTANT: Remove the following line when the SupernovaSDK is updated to return a list of numbers
     target_pid = [f"0x{num:02x}" for num in target_pid]
 
-    icm_device = find_matching_item(targets, target_pid)
+    (deviceFound, icm_device) = i3c.find_target_device_by_pid(target_pid)
 
-    if icm_device is None:
+    if deviceFound is False:
         print("ICM device not found in the I3C bus")
 
     print(icm_device)
