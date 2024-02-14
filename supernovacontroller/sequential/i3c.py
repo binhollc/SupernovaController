@@ -280,7 +280,7 @@ class SupernovaI3CBlockingInterface:
 
         filtered_devices = list(filter(lambda device: device["pid"][::-1] == pid, responses[0]["table"]))
 
-        if(len(filtered_devices) == 0):
+        if (len(filtered_devices) == 0):
             return (False, None)
         
         target_info = filtered_devices[0]
