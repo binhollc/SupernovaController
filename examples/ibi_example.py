@@ -19,7 +19,7 @@ def main():
         exit(1)
 
     # Target PID in hexadecimal format
-    target_pid = [0x00, 0x00, 0x00, 0x00, 0x6A, 0x04]
+    target_pid = [0x6A, 0x04, 0x00, 0x00, 0x00, 0x00]
 
     # IMPORTANT: Remove the following line when the SupernovaSDK is updated to return a list of numbers
     target_pid = [f"0x{num:02x}" for num in target_pid]

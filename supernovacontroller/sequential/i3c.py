@@ -278,7 +278,7 @@ class SupernovaI3CBlockingInterface:
         except Exception as e:
             raise BackendError(original_exception=e) from e
 
-        filtered_devices = list(filter(lambda device: device["pid"][::-1] == pid, responses[0]["table"]))
+        filtered_devices = list(filter(lambda device: device["pid"] == pid, responses[0]["table"]))
 
         if (len(filtered_devices) == 0):
             return (False, None)
@@ -288,7 +288,7 @@ class SupernovaI3CBlockingInterface:
         dynamic_address = target_info["dynamicAddress"]
         bcr = int(target_info["bcr"]["value"][2][2:4], 16)
         dcr = target_info["dcr"]
-        pid = target_info["pid"][::-1] # Reversing using list slicing
+        pid = target_info["pid"]
         return (True, {
             "static_address" : static_address,
             "dynamic_address" : dynamic_address,
