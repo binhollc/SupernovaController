@@ -87,16 +87,20 @@ class SupernovaDevice:
 
         return _process_device_info(responses)
 
-    def getAllConnectedSupernovaDevices(self):
+    #static method
+    def getAllConnectedSupernovaDevices():
         return getConnectedSupernovaDevicesList()
 
-    def openAllConnectedSupernovaDevices(self):
-        allDevices = self.getAllConnectedSupernovaDevices()
+    #static method
+    def openAllConnectedSupernovaDevices():
+        allDevices = SupernovaDevice.getAllConnectedSupernovaDevices()
         openedDevices = []
 
         for device in allDevices:
+            newDevice = SupernovaDevice()
             try:
-                openedDevices.append(self.open(device["path"]))
+                newDevice.open(device["path"])
+                openedDevices.append(newDevice)
             except DeviceAlreadyMountedError as e:
                 continue
 
