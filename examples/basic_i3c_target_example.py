@@ -42,12 +42,11 @@ def main():
     print("Initialize Supernovas")
     print("-----------------------")
 
-    target_device = SupernovaDevice()
-    info = target_device.open(usb_address ="\\\\?\\HID#VID_1FC9&PID_82FC#6&2fcfc8d8&0&0000#{4d1e55b2-f16f-11cf-88cb-001111000030}")
+    
+    devices = SupernovaDevice.openAllConnectedSupernovaDevices()
+    target_device = devices[0]
     i3c_target = target_device.create_interface("i3c.target")
-
-    controller_device = SupernovaDevice()
-    info = controller_device.open(usb_address ="\\\\?\\HID#VID_1FC9&PID_82FC#7&f321146&0&0000#{4d1e55b2-f16f-11cf-88cb-001111000030}")
+    controller_device = devices[1]
     i3c_controller = controller_device.create_interface("i3c.controller")
 
     print("--------------------------------------------------------------------------------------------------------")

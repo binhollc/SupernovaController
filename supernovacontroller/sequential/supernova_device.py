@@ -1,4 +1,5 @@
 from transfer_controller import TransferController
+from BinhoSupernova import getConnectedSupernovaDevicesList;
 from BinhoSupernova.Supernova import Supernova
 from BinhoSupernova.commands.definitions import GetUsbStringSubCommand
 from BinhoSupernova.utils.system_message import SystemOpcode
@@ -85,6 +86,25 @@ class SupernovaDevice:
         self.mounted = True
 
         return _process_device_info(responses)
+
+    #static method
+    def getAllConnectedSupernovaDevices():
+        return getConnectedSupernovaDevicesList()
+
+    #static method
+    def openAllConnectedSupernovaDevices():
+        allDevices = SupernovaDevice.getAllConnectedSupernovaDevices()
+        openedDevices = []
+
+        for device in allDevices:
+            newDevice = SupernovaDevice()
+            try:
+                newDevice.open(device["path"])
+                openedDevices.append(newDevice)
+            except DeviceAlreadyMountedError as e:
+                continue
+
+        return openedDevices
 
     def on_notification(self, name, filter_func, handler_func):
         if name not in self.notification_handlers:
