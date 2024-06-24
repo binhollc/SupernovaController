@@ -547,6 +547,70 @@ class TestSupernovaController(unittest.TestCase):
         (success, result) = spi_controller.transfer(data, transfer_length)
 
         self.assertTupleEqual((success, result), (True, [0xAA, 0xBB, 0xCC, 0x00, 0x00]))
+        self.device.close()
 
+    def test_direct_rstact_read(self):
+        if self.use_simulator:
+            self.skipTest("For real device only")
+
+        self.device.open()
+        i3c = self.device.create_interface("i3c.controller")
+
+        i3c.init_bus(3300)
+
+        (success, result) = i3c.ccc_direct_rstact(0x08,I3cTargetResetDefByte.RESET_I3C_PERIPHERAL, TransferDirection.READ)
+
+        self.assertTupleEqual((success, result), (True, [0x00]))
+
+        self.device.close()
+
+    def test_direct_rstact_write(self):
+        if self.use_simulator:
+            self.skipTest("For real device only")
+
+        self.device.open()
+
+        i3c = self.device.create_interface("i3c.controller")
+
+        i3c.init_bus(3300)
+
+        (success, result) = i3c.ccc_direct_rstact(0x08,I3cTargetResetDefByte.RESET_I3C_PERIPHERAL, TransferDirection.WRITE)
+
+        self.assertTupleEqual((success, result), (True, None))
+
+        self.device.close()
+
+    def test_broadcast_rstact(self):
+        if self.use_simulator:
+            self.skipTest("For real device only")
+
+        self.device.open()
+
+        i3c = self.device.create_interface("i3c.controller")
+
+        i3c.init_bus(3300)
+
+        (success, result) = i3c.ccc_broadcast_rstact(I3cTargetResetDefByte.RESET_I3C_PERIPHERAL)
+
+        self.assertTupleEqual((success, result), (True, None))
+
+        self.device.close()
+
+    def test_trigger_target_reset_pattern(self):
+        if self.use_simulator:
+            self.skipTest("For real device only")
+
+        self.device.open()
+        i3c = self.device.create_interface("i3c.controller")
+
+        i3c.init_bus(3300)
+
+        (success, result) = i3c.trigger_target_reset_pattern()
+
+        self.assertTupleEqual((success, result), (True, None))
+
+        self.device.close()
+
+        
 if __name__ == "__main__":
     unittest.main()
