@@ -15,6 +15,7 @@ from .i3c import SupernovaI3CBlockingInterface
 from .uart import SupernovaUARTBlockingInterface
 from .i3c_target import SupernovaI3CTargetBlockingInterface
 from .spi_controller import SupernovaSPIControllerBlockingInterface
+from .gpio import SupernovaGPIOInterface
 
 def id_gen(start=0):
     i = start
@@ -24,30 +25,31 @@ def id_gen(start=0):
 
 class SupernovaDevice:
     def __init__(self, start_id=0):
-      self.controller = TransferController(id_gen(start_id))
-      self.response_queue = queue.SimpleQueue()
-      self.notification_queue = queue.SimpleQueue()
-      self.notification_handlers = {}
+        self.controller = TransferController(id_gen(start_id))
+        self.response_queue = queue.SimpleQueue()
+        self.notification_queue = queue.SimpleQueue()
+        self.notification_handlers = {}
 
-      self.process_response_thread = threading.Thread(target=self._pull_sdk_response, daemon=True)
-      self.process_notifications_thread = threading.Thread(target=self._pull_sdk_notification, daemon=True)
+        self.process_response_thread = threading.Thread(target=self._pull_sdk_response, daemon=True)
+        self.process_notifications_thread = threading.Thread(target=self._pull_sdk_notification, daemon=True)
 
-      self.running = True
+        self.running = True
 
-      self.process_response_thread.start()
-      self.process_notifications_thread.start()
+        self.process_response_thread.start()
+        self.process_notifications_thread.start()
 
-      self.driver = Supernova()
+        self.driver = Supernova()
 
-      self.interfaces = {
-          "i2c": [None, SupernovaI2CBlockingInterface],
-          "i3c.controller": [None, SupernovaI3CBlockingInterface],
-          "uart":[None, SupernovaUARTBlockingInterface],
-          "i3c.target": [None, SupernovaI3CTargetBlockingInterface],
-          "spi.controller": [None, SupernovaSPIControllerBlockingInterface],
-      }
+        self.interfaces = {
+            "i2c": [None, SupernovaI2CBlockingInterface],
+            "i3c.controller": [None, SupernovaI3CBlockingInterface],
+            "uart": [None, SupernovaUARTBlockingInterface],
+            "i3c.target": [None, SupernovaI3CTargetBlockingInterface],
+            "spi.controller": [None, SupernovaSPIControllerBlockingInterface],
+            "gpio": [None, SupernovaGPIOInterface],
+        }
 
-      self.mounted = False
+        self.mounted = False
 
     def open(self, usb_address=None):
         if self.mounted:
@@ -108,6 +110,24 @@ class SupernovaDevice:
 
         return openedDevices
 
+    def get_hardware_version(self):
+        """
+        Retrieves the hardware version of the connected Supernova device.
+
+        Returns:
+        str: The hardware version of the Supernova device.
+        """
+        try:
+            response = self.controller.sync_submit([
+                lambda transfer_id: self.driver.getUsbString(transfer_id, GetUsbStringSubCommand.HW_VERSION)
+            ])
+            if response[0]["name"] == "GET USB STRING" and "message" in response[0]:
+                return response[0]["message"]
+        except Exception as e:
+            raise BackendError(original_exception=e) from e
+
+        raise BackendError("Unable to retrieve hardware version.")
+
     def on_notification(self, name, filter_func, handler_func):
         if name not in self.notification_handlers:
             self.notification_handlers[name] = (filter_func, handler_func)
@@ -164,7 +184,11 @@ class SupernovaDevice:
         [interface, interface_class] = self.interfaces[interface_name]
 
         if interface is None:
-            self.interfaces[interface_name][0] = interface_class(self.driver, self.controller, self.on_notification)
+            if interface_name == "gpio":
+                hardware_version = self.get_hardware_version()
+                self.interfaces[interface_name][0] = interface_class(self.driver, self.controller, self.on_notification, hardware_version)
+            else:
+                self.interfaces[interface_name][0] = interface_class(self.driver, self.controller, self.on_notification)
             interface = self.interfaces[interface_name][0]
 
         return interface

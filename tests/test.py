@@ -13,7 +13,8 @@ from supernovacontroller.errors import UnknownInterfaceError
 from supernovacontroller.errors import BackendError
 from BinhoSupernova.commands.definitions import (
     SpiControllerBitOrder, SpiControllerMode, SpiControllerDataWidth,
-    SpiControllerChipSelect, SpiControllerChipSelectPolarity)
+    SpiControllerChipSelect, SpiControllerChipSelectPolarity,
+    GpioPinNumber, GpioLogicLevel, GpioFunctionality, GpioTriggerType)
 from BinhoSupernova.Supernova import I3cTargetResetDefByte
 from BinhoSupernova.Supernova import TransferDirection
 
@@ -547,6 +548,85 @@ class TestSupernovaController(unittest.TestCase):
         (success, result) = spi_controller.transfer(data, transfer_length)
 
         self.assertTupleEqual((success, result), (True, [0xAA, 0xBB, 0xCC, 0x00, 0x00]))
+        
+    def test_gpio_set_bus_voltage(self):
+        if self.use_simulator:
+            self.skipTest("For real device only")
+
+        self.device.open()
+        
+        gpio = self.device.create_interface("gpio")
+        
+        (success, result) = gpio.set_pins_voltage(3300)
+        
+        self.assertTupleEqual((success, result), (True, 3300))
+        self.assertEqual(gpio.pins_voltage, 3300)
+        
+        self.device.close()
+
+    def test_gpio_configure_pin(self):
+        if self.use_simulator:
+            self.skipTest("For real device only")
+
+        self.device.open()
+        
+        gpio = self.device.create_interface("gpio")
+        
+        (success, result) = gpio.configure_pin(GpioPinNumber.GPIO_6, GpioFunctionality.DIGITAL_OUTPUT)
+        self.assertEqual(success, True)
+        self.assertEqual(result, "Success")
+        
+        (success, result) = gpio.configure_pin(GpioPinNumber.GPIO_5, GpioFunctionality.DIGITAL_INPUT)
+        self.assertEqual(success, True)
+        self.assertEqual(result, "Success")
+        
+        self.device.close()
+
+    def test_gpio_digital_write_read(self):
+        if self.use_simulator:
+            self.skipTest("For real device only")
+
+        self.device.open()
+        
+        gpio = self.device.create_interface("gpio")
+        
+        gpio.configure_pin(GpioPinNumber.GPIO_6, GpioFunctionality.DIGITAL_OUTPUT)
+        gpio.configure_pin(GpioPinNumber.GPIO_5, GpioFunctionality.DIGITAL_INPUT)
+        
+        (success, _) = gpio.digital_write(GpioPinNumber.GPIO_6, GpioLogicLevel.HIGH)
+        self.assertEqual(success, True)
+        
+        (success, value) = gpio.digital_read(GpioPinNumber.GPIO_5)
+        self.assertEqual(success, True)
+        self.assertEqual(value, GpioLogicLevel.HIGH.name)
+        
+        (success, _) = gpio.digital_write(GpioPinNumber.GPIO_6, GpioLogicLevel.LOW)
+        self.assertEqual(success, True)
+        
+        (success, value) = gpio.digital_read(GpioPinNumber.GPIO_5)
+        self.assertEqual(success, True)
+        self.assertEqual(value, GpioLogicLevel.LOW.name)
+        
+        self.device.close()
+
+    def test_gpio_set_disable_interrupt(self):
+        if self.use_simulator:
+            self.skipTest("For real device only")
+        self.device.open()
+        
+        gpio = self.device.create_interface("gpio")
+        
+        gpio.configure_pin(GpioPinNumber.GPIO_5, GpioFunctionality.DIGITAL_INPUT)
+        
+        (success, result) = gpio.set_interrupt(GpioPinNumber.GPIO_5, GpioTriggerType.TRIGGER_BOTH_EDGES)
+        self.assertEqual(success, True)
+        self.assertEqual(result, "Success")
+        
+        (success, result) = gpio.disable_interrupt(GpioPinNumber.GPIO_5)
+        self.assertEqual(success, True)
+        self.assertEqual(result, "Success")
+        
+        self.device.close()
 
 if __name__ == "__main__":
     unittest.main()

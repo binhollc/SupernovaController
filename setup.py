@@ -15,7 +15,7 @@ setup(
     packages=find_packages(),
     data_files=[
         ('lib/site-packages/supernovacontrollerexamples', ['examples/basic_i2c_example.py', 'examples/basic_i3c_example.py', 'examples/i3c_ibi_example.py', 'examples/ICM42605_i3c_example.py', 'examples/basic_i3c_target_example.py',
-                               'examples/basic_uart_example.py', 'examples/basic_spi_controller_example.py', 'examples/hot_join_example.py', 'examples/i3c_target_set_ids.py'])
+                               'examples/basic_uart_example.py', 'examples/basic_spi_controller_example.py', 'examples/hot_join_example.py', 'examples/i3c_target_set_ids.py', 'examples/basic_gpio_example.py'])
     ],
     description='A blocking API for interacting with the Supernova host-adapter device',
     long_description=open('README.md').read(),

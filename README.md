@@ -554,6 +554,130 @@ In a SPI bus, the Supernova can act as a controller.
     data_from_target = response[3:]
     ```
 
+
+## GPIO
+
+### GPIO features
+
+This section describes how to get you started with the `SupernovaController` focusing on the GPIO protocol.
+
+* The supported features are:
+    * Setting of bus voltage.
+    * Configuring pins as digital inputs or outputs.
+    * Digital read/write operations.
+    * Setting and disabling interrupts on pins.
+    
+### Basic GPIO Communication
+
+#### Generic operations
+
+1. ***Initializing the Supernova Device:***
+
+   Imports and initializes the `SupernovaDevice`. Optionally, specifies the USB HID path if multiple devices are connected:
+
+   ```python
+   from supernovacontroller.sequential import SupernovaDevice
+
+   device = SupernovaDevice()
+   
+   # Optionally specify the USB HID path
+   device.open(usb_address='your_usb_hid_path')
+   ```
+
+   Call `open()` without parameters if you don't need to specify a particular device.
+
+2. ***Creates a GPIO interface:***
+
+    ```python
+    gpio = device.create_interface("gpio")
+    ```
+ 
+3. ***Closing the Device:***
+
+    Closes the device when done:
+
+    ```python
+    device.close()
+    ```
+
+### Operations intended for the Supernova GPIO peripheral
+
+1. ***Setting Pins Voltage:***
+
+    Sets the pins voltage (in mV) for the GPIO pins. This step is required before initializing the GPIO interface:
+
+    ```python
+    success, response = gpio.set_pins_voltage(3300)
+    ```
+    **Important note:**
+    - If Supernova rev. B is used, voltage can be set in pins 1 and 2. Pins 3 to 6 are fixed at 3.3 V.
+    - If Supernova rev. C is used, voltage is set for all pins.
+
+2. ***Configuring a GPIO pin:***
+
+    Configures a GPIO pin with the specified functionality. For example, configuring GPIO pin 6 as a digital output:
+
+    ```python
+    from BinhoSupernova.commands.definitions import GpioPinNumber, GpioFunctionality
+
+    success, response = gpio.configure_pin(GpioPinNumber.GPIO_6, GpioFunctionality.DIGITAL_OUTPUT)
+    ```
+
+3. ***Digital Write:***
+
+    Writes a digital logic level to a GPIO pin configured as a digital output. For example, setting GPIO pin 6 to LOW:
+
+    ```python
+    from BinhoSupernova.commands.definitions import GpioLogicLevel
+
+    success, response = gpio.digital_write(GpioPinNumber.GPIO_6, GpioLogicLevel.LOW)
+    ```
+
+4. ***Digital Read:***
+
+    Reads the digital logic level from a GPIO pin configured as a digital input. For example, reading the value from GPIO pin 5:
+
+    ```python
+    success, value = gpio.digital_read(GpioPinNumber.GPIO_5)
+    ```
+
+5. ***Set Interrupt:***
+
+    Sets an interrupt on a GPIO pin configured as a digital input. For example, setting an interrupt on GPIO pin 5 for both rising and falling edges:
+
+    ```python
+    from BinhoSupernova.commands.definitions import GpioTriggerType
+
+    success, response = gpio.set_interrupt(GpioPinNumber.GPIO_5, GpioTriggerType.TRIGGER_BOTH_EDGES)
+    ```
+
+6. ***Handle interruptions:***
+
+    The following code snippet illustrates a non-concurrent way of handling GPIO interruptions:
+
+    ```python
+    from threading import Event
+    from BinhoSupernova.commands.definitions import GpioLogicLevel
+
+    gpio_interrupt_event = Event()
+
+    # Asumes pin 6 initially at LOW level and pins 5 and 6 are connected to each other
+    for level in [GpioLogicLevel.HIGH, GpioLogicLevel.LOW, GpioLogicLevel.HIGH, GpioLogicLevel.LOW]:
+        gpio.digital_write(GpioPinNumber.GPIO_6, level)
+
+        # Wait for the GPIO interrupt to be processed
+        gpio_interrupt_event.wait()
+        gpio_interrupt_event.clear()
+    ```
+
+7. ***Disable Interrupt:***
+
+    Disables an interrupt on a GPIO pin. For example, disabling the interrupt on GPIO pin 5:
+
+    ```python
+    success, response = gpio.disable_interrupt(GpioPinNumber.GPIO_5)
+    ```
+
 ## Next Steps
 
 After installing the `SupernovaController` package, you can further explore its capabilities by trying out the examples included in the installation. These examples demonstrate practical applications of SPI, UART, I2C and I3C protocols:
