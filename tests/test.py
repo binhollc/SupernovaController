@@ -311,6 +311,51 @@ class TestSupernovaController(unittest.TestCase):
 
         self.assertTupleEqual((success, result), (False, "NACK_ERROR"))
 
+    def test_ccc_get_and_set_mrl(self):
+        if not self.use_simulator:
+            self.skipTest("For simulator only")
+
+        self.device.open()
+
+        i3c = self.device.create_interface("i3c.controller")
+
+        i3c.init_bus(3300)
+
+        (success, result) = i3c.ccc_getmrl(0x08)
+
+        self.assertTupleEqual((success, result), (True, 16))
+
+        (success, _) = i3c.ccc_unicast_setmrl(0x08, 10)
+
+        self.assertEqual(success, True)
+
+        (success, result) = i3c.ccc_getmrl(0x08)
+
+        self.assertTupleEqual((success, result), (True, 10))
+
+    def test_ccc_set_mwl_real_device(self):
+        if self.use_simulator:
+            self.skipTest("For real device only")
+
+        self.device.open()
+
+        i3c = self.device.create_interface("i3c.controller")
+
+        i3c.init_bus(3300)
+
+        (_, connectedDevices) = i3c.targets()
+
+        if len(connectedDevices) == 0:
+            self.fail("Test requires a connected target")
+
+        (success, _) = i3c.ccc_broadcast_setmwl(10)
+
+        self.assertEqual(success, True)
+
+        (success, result) = i3c.ccc_getmwl(0x08)
+
+        self.assertTupleEqual((success, result), (True, 10))
+
     def test_spi_controller_set_bus_voltage(self):
         spi_controller = self.device.create_interface("spi.controller")
 
