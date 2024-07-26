@@ -1,3 +1,4 @@
+from threading import Event
 import unittest
 from unittest import mock
 from unittest.mock import patch
@@ -21,6 +22,24 @@ from BinhoSupernova.Supernova import TransferDirection
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from binhosimulators import BinhoSupernovaSimulator
 
+counter = 0
+last_ibi = Event()
+caught_ibis = []
+
+def _is_ibi(name, message):
+        return message['name'].strip() == "I3C IBI NOTIFICATION" and message['header']['type'] == "IBI_NORMAL"
+
+def _handle_ibi(name, message):
+    global counter
+    global last_ibi
+    global caught_ibis
+
+    caught_ibis.append({'dynamic_address': message['header']['address'],  'controller_response': message['header']['response'], 'mdb':message['payload'][0]})
+
+    counter += 1
+    if counter == 5:
+        last_ibi.set()
+        
 class TestSupernovaController(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -355,6 +374,35 @@ class TestSupernovaController(unittest.TestCase):
         (success, result) = i3c.ccc_getmwl(0x08)
 
         self.assertTupleEqual((success, result), (True, 10))
+
+    def test_toggle_handle_ibi(self):
+        if not self.use_simulator:
+            self.skipTest("For simulator only")
+        
+        self.device.on_notification(name="ibi", filter_func=_is_ibi, handler_func=_handle_ibi)
+
+        self.device.open()
+
+        i3c = self.device.create_interface("i3c.controller")
+
+        i3c.init_bus(3300)
+
+        (success, _) = i3c.toggle_ibi(0x0A, True)
+
+        self.assertEqual(success, True)
+
+        last_ibi.wait()
+
+        (success, _) = i3c.toggle_ibi(0x0A, False)
+
+        self.assertEqual(success, True)
+
+        self.assertEqual(len(caught_ibis), 5)
+        for ibi in caught_ibis:
+            self.assertDictEqual({'dynamic_address': 10, 'controller_response': 'IBI_ACKED_WITH_PAYLOAD', 'mdb': 2}, ibi) 
+        
+        caught_ibis.clear()
+        self.device.close()
 
     def test_spi_controller_set_bus_voltage(self):
         spi_controller = self.device.create_interface("spi.controller")
