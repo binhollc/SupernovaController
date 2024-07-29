@@ -422,6 +422,59 @@ class TestSupernovaController(unittest.TestCase):
         
         self.device.close()
 
+    def test_toggle_handle_ibi_ICM42605(self):
+        if self.use_simulator:
+            self.skipTest("For real device only")
+        
+        self.device.on_notification(name="ibi", filter_func=_is_ibi, handler_func=_handle_ibi)
+
+        self.device.open()
+
+        i3c = self.device.create_interface("i3c.controller")
+        i3c.init_bus(3300)
+
+        target_pid = ["0x04", "0x6A", "0x00", "0x00", "0x00", "0x00"]
+        (deviceFound, icm_device) = i3c.find_target_device_by_pid(target_pid)
+
+        if deviceFound is False:
+            self.skipTest("ICM device not found in the I3C bus")
+
+        target_address = icm_device["dynamic_address"]
+
+        i3c.toggle_ibi(target_address, False)
+
+        i3c.write(target_address, i3c.TransferMode.I3C_SDR, [0x76], [0x00])
+        i3c.write(target_address, i3c.TransferMode.I3C_SDR, [0x4E], [0x20])
+        i3c.write(target_address, i3c.TransferMode.I3C_SDR, [0x13], [0x05])
+        i3c.write(target_address, i3c.TransferMode.I3C_SDR, [0x16], [0x40])
+        i3c.write(target_address, i3c.TransferMode.I3C_SDR, [0x5F], [0x61])
+        i3c.write(target_address, i3c.TransferMode.I3C_SDR, [0x60], [0x0F, 0x00])
+        i3c.write(target_address, i3c.TransferMode.I3C_SDR, [0x50], [0x0E])
+        i3c.write(target_address, i3c.TransferMode.I3C_SDR, [0x76], [0x01])
+        i3c.write(target_address, i3c.TransferMode.I3C_SDR, [0x03], [0x38])
+        i3c.write(target_address, i3c.TransferMode.I3C_SDR, [0x7A], [0x02])
+        i3c.write(target_address, i3c.TransferMode.I3C_SDR, [0x7C], [0x1F])
+        i3c.write(target_address, i3c.TransferMode.I3C_SDR, [0x76], [0x04])
+        i3c.write(target_address, i3c.TransferMode.I3C_SDR, [0x4F], [0x04])
+        i3c.write(target_address, i3c.TransferMode.I3C_SDR, [0x76], [0x00])
+        i3c.write(target_address, i3c.TransferMode.I3C_SDR, [0x4E], [0x02])
+
+        i3c.toggle_ibi(target_address, True)
+
+        last_ibi.wait()
+
+        (success, _) = i3c.toggle_ibi(0x0A, False)
+
+        self.assertEqual(success, True)
+
+        self.assertEqual(len(caught_ibis), 5)
+        for ibi in caught_ibis:
+            self.assertDictEqual({'dynamic_address': target_address, 'controller_response': 'IBI_ACKED_WITH_PAYLOAD', 'mdb': 2}, ibi) 
+        
+        caught_ibis.clear()
+        last_ibi.clear()
+        self.device.close()
+
     def test_spi_controller_set_bus_voltage(self):
         spi_controller = self.device.create_interface("spi.controller")
 
