@@ -149,7 +149,7 @@ class TestSupernovaController(unittest.TestCase):
 
         (success, result) = i3c.init_bus(1500)
 
-        self.assertEqual(success, False)
+        self.assertEqual(success, False, "Init bus succeded, are there devices connected?")
         self.assertTrue("errors" in result)
 
     def test_i3c_reset_bus(self):
