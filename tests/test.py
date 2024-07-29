@@ -402,6 +402,7 @@ class TestSupernovaController(unittest.TestCase):
             self.assertDictEqual({'dynamic_address': 10, 'controller_response': 'IBI_ACKED_WITH_PAYLOAD', 'mdb': 2}, ibi) 
         
         caught_ibis.clear()
+        last_ibi.clear()
         self.device.close()
 
     def test_spi_controller_set_bus_voltage(self):
