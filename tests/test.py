@@ -405,6 +405,23 @@ class TestSupernovaController(unittest.TestCase):
         last_ibi.clear()
         self.device.close()
 
+    def test_find_target_by_pid_with_ICM42605(self):
+        if self.use_simulator:
+            self.skipTest("For real device only")
+        
+        self.device.open()
+
+        i3c = self.device.create_interface("i3c.controller")
+        i3c.init_bus(3300)
+
+        target_pid = ["0x04", "0x6a", "0x00", "0x00", "0x00", "0x00"]
+        (deviceFound, icm_device) = i3c.find_target_device_by_pid(target_pid)
+
+        self.assertTupleEqual((True, {'static_address': 0, 'dynamic_address': 8, 'bcr': 39, 'dcr': 160, 'pid': ['0x04', '0x6a', '0x00', '0x00', '0x00', '0x00']}), 
+                              (deviceFound, icm_device), "Failed to find ICM, is it connected?")
+        
+        self.device.close()
+
     def test_spi_controller_set_bus_voltage(self):
         spi_controller = self.device.create_interface("spi.controller")
 
