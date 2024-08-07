@@ -58,6 +58,8 @@ class TestSupernovaController(unittest.TestCase):
         self.device_info = self.device.open()
 
     def tearDown(self):
+        caught_ibis.clear()
+        last_ibi.clear()
         self.device.close()
 
     def test_open_device_with_wrong_address(self):
@@ -399,11 +401,7 @@ class TestSupernovaController(unittest.TestCase):
 
         self.assertEqual(len(caught_ibis), 5)
         for ibi in caught_ibis:
-            self.assertDictEqual({'dynamic_address': 10, 'controller_response': 'IBI_ACKED_WITH_PAYLOAD', 'mdb': 2}, ibi) 
-        
-        caught_ibis.clear()
-        last_ibi.clear()
-        self.device.close()
+            self.assertDictEqual({'dynamic_address': 10, 'controller_response': 'IBI_ACKED_WITH_PAYLOAD', 'mdb': 2}, ibi)
 
     def test_find_target_by_pid_with_ICM42605(self):
         if self.use_simulator:
@@ -419,8 +417,6 @@ class TestSupernovaController(unittest.TestCase):
 
         self.assertTupleEqual((True, {'static_address': 0, 'dynamic_address': 8, 'bcr': 39, 'dcr': 160, 'pid': ['0x04', '0x6a', '0x00', '0x00', '0x00', '0x00']}), 
                               (deviceFound, icm_device), "Failed to find ICM, is it connected?")
-        
-        self.device.close()
 
     def test_toggle_handle_ibi_ICM42605(self):
         if self.use_simulator:
@@ -469,11 +465,7 @@ class TestSupernovaController(unittest.TestCase):
 
         self.assertEqual(len(caught_ibis), 5)
         for ibi in caught_ibis:
-            self.assertDictEqual({'dynamic_address': target_address, 'controller_response': 'IBI_ACKED_WITH_PAYLOAD', 'mdb': 2}, ibi) 
-        
-        caught_ibis.clear()
-        last_ibi.clear()
-        self.device.close()
+            self.assertDictEqual({'dynamic_address': target_address, 'controller_response': 'IBI_ACKED_WITH_PAYLOAD', 'mdb': 2}, ibi)
 
     def test_spi_controller_set_bus_voltage(self):
         spi_controller = self.device.create_interface("spi.controller")
@@ -666,6 +658,5 @@ class TestSupernovaController(unittest.TestCase):
 
         self.assertTupleEqual((success, result), (True, None))
 
-        
 if __name__ == "__main__":
     unittest.main()
