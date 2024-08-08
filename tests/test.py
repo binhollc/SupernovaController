@@ -58,6 +58,11 @@ class TestSupernovaController(unittest.TestCase):
         self.device_info = self.device.open()
 
     def tearDown(self):
+        global caught_ibis
+        global last_ibi
+        global counter
+
+        counter = 0
         caught_ibis.clear()
         last_ibi.clear()
         self.device.close()
@@ -403,7 +408,7 @@ class TestSupernovaController(unittest.TestCase):
         for ibi in caught_ibis:
             self.assertDictEqual({'dynamic_address': 10, 'controller_response': 'IBI_ACKED_WITH_PAYLOAD', 'mdb': 2}, ibi)
 
-    def test_find_target_by_pid_with_ICM42605(self):
+    def test_find_target_by_pid_with_BMI323(self):
         if self.use_simulator:
             self.skipTest("For real device only")
         
@@ -412,13 +417,13 @@ class TestSupernovaController(unittest.TestCase):
         i3c = self.device.create_interface("i3c.controller")
         i3c.init_bus(3300)
 
-        target_pid = ["0x04", "0x6a", "0x00", "0x00", "0x00", "0x00"]
-        (deviceFound, icm_device) = i3c.find_target_device_by_pid(target_pid)
+        target_pid = ["0x07", "0x70", "0x10", "0x43", "0x10", "0x00"]
+        (deviceFound, bmi_device) = i3c.find_target_device_by_pid(target_pid)
 
-        self.assertTupleEqual((True, {'static_address': 0, 'dynamic_address': 8, 'bcr': 39, 'dcr': 160, 'pid': ['0x04', '0x6a', '0x00', '0x00', '0x00', '0x00']}), 
-                              (deviceFound, icm_device), "Failed to find ICM, is it connected?")
+        self.assertEqual(True, deviceFound, "Failed to find BMI323, is it connected?")
+        self.assertDictContainsSubset({'bcr': 6, 'dcr': 239, 'pid': ["0x07", "0x70", "0x10", "0x43", "0x10", "0x00"]}, bmi_device, "Failed to find BMI323, is it connected?")
 
-    def test_toggle_handle_ibi_ICM42605(self):
+    def test_toggle_handle_ibi_BMI323(self):
         if self.use_simulator:
             self.skipTest("For real device only")
         
@@ -429,37 +434,27 @@ class TestSupernovaController(unittest.TestCase):
         i3c = self.device.create_interface("i3c.controller")
         i3c.init_bus(3300)
 
-        target_pid = ["0x04", "0x6A", "0x00", "0x00", "0x00", "0x00"]
-        (deviceFound, icm_device) = i3c.find_target_device_by_pid(target_pid)
+        target_pid = ["0x07", "0x70", "0x10", "0x43", "0x10", "0x00"]
+        (deviceFound, bmi_device) = i3c.find_target_device_by_pid(target_pid)
 
         if deviceFound is False:
-            self.skipTest("ICM device not found in the I3C bus")
+            self.skipTest("BMI device not found in the I3C bus")
 
-        target_address = icm_device["dynamic_address"]
+        target_address = bmi_device["dynamic_address"]
 
         i3c.toggle_ibi(target_address, False)
 
-        i3c.write(target_address, i3c.TransferMode.I3C_SDR, [0x76], [0x00])
-        i3c.write(target_address, i3c.TransferMode.I3C_SDR, [0x4E], [0x20])
-        i3c.write(target_address, i3c.TransferMode.I3C_SDR, [0x13], [0x05])
-        i3c.write(target_address, i3c.TransferMode.I3C_SDR, [0x16], [0x40])
-        i3c.write(target_address, i3c.TransferMode.I3C_SDR, [0x5F], [0x61])
-        i3c.write(target_address, i3c.TransferMode.I3C_SDR, [0x60], [0x0F, 0x00])
-        i3c.write(target_address, i3c.TransferMode.I3C_SDR, [0x50], [0x0E])
-        i3c.write(target_address, i3c.TransferMode.I3C_SDR, [0x76], [0x01])
-        i3c.write(target_address, i3c.TransferMode.I3C_SDR, [0x03], [0x38])
-        i3c.write(target_address, i3c.TransferMode.I3C_SDR, [0x7A], [0x02])
-        i3c.write(target_address, i3c.TransferMode.I3C_SDR, [0x7C], [0x1F])
-        i3c.write(target_address, i3c.TransferMode.I3C_SDR, [0x76], [0x04])
-        i3c.write(target_address, i3c.TransferMode.I3C_SDR, [0x4F], [0x04])
-        i3c.write(target_address, i3c.TransferMode.I3C_SDR, [0x76], [0x00])
-        i3c.write(target_address, i3c.TransferMode.I3C_SDR, [0x4E], [0x02])
+        i3c.write(target_address, i3c.TransferMode.I3C_SDR, [0x20], [0x85, 0x40])
+        i3c.write(target_address, i3c.TransferMode.I3C_SDR, [0x21], [0x95, 0x40])
+        i3c.write(target_address, i3c.TransferMode.I3C_SDR, [0x3A], [0x00, 0x00])
+        i3c.write(target_address, i3c.TransferMode.I3C_SDR, [0x3B], [0x00, 0x0C])
+        i3c.write(target_address, i3c.TransferMode.I3C_SDR, [0x38], [0x05, 0x05])
 
         i3c.toggle_ibi(target_address, True)
 
         last_ibi.wait()
 
-        (success, _) = i3c.toggle_ibi(0x0A, False)
+        (success, _) = i3c.toggle_ibi(target_address, False)
 
         self.assertEqual(success, True)
 
