@@ -27,14 +27,14 @@ last_ibi = Event()
 caught_ibis = []
 
 def _is_ibi(name, message):
-        return message['name'].strip() == "I3C IBI NOTIFICATION" and message['header']['type'] == "IBI_NORMAL"
+        return message["name"].strip() == "I3C IBI NOTIFICATION" and message["header"]["type"] == "IBI_NORMAL"
 
 def _handle_ibi(name, message):
     global counter
     global last_ibi
     global caught_ibis
 
-    caught_ibis.append({'dynamic_address': message['header']['address'],  'controller_response': message['header']['response'], 'mdb':message['payload'][0]})
+    caught_ibis.append({"dynamic_address": message["header"]["address"],  "controller_response": message["header"]["response"], "mdb":message["payload"][0]})
 
     counter += 1
     if counter == 5:
@@ -341,8 +341,6 @@ class TestSupernovaController(unittest.TestCase):
         if not self.use_simulator:
             self.skipTest("For simulator only")
 
-        self.device.open()
-
         i3c = self.device.create_interface("i3c.controller")
 
         i3c.init_bus(3300)
@@ -362,8 +360,6 @@ class TestSupernovaController(unittest.TestCase):
     def test_ccc_set_mwl_real_device(self):
         if self.use_simulator:
             self.skipTest("For real device only")
-
-        self.device.open()
 
         i3c = self.device.create_interface("i3c.controller")
 
@@ -388,8 +384,6 @@ class TestSupernovaController(unittest.TestCase):
         
         self.device.on_notification(name="ibi", filter_func=_is_ibi, handler_func=_handle_ibi)
 
-        self.device.open()
-
         i3c = self.device.create_interface("i3c.controller")
 
         i3c.init_bus(3300)
@@ -406,13 +400,11 @@ class TestSupernovaController(unittest.TestCase):
 
         self.assertEqual(len(caught_ibis), 5)
         for ibi in caught_ibis:
-            self.assertDictEqual({'dynamic_address': 10, 'controller_response': 'IBI_ACKED_WITH_PAYLOAD', 'mdb': 2}, ibi)
+            self.assertDictEqual({"dynamic_address": 10, "controller_response": "IBI_ACKED_WITH_PAYLOAD", "mdb": 2}, ibi)
 
     def test_find_target_by_pid_with_BMI323(self):
         if self.use_simulator:
             self.skipTest("For real device only")
-        
-        self.device.open()
 
         i3c = self.device.create_interface("i3c.controller")
         i3c.init_bus(3300)
@@ -421,15 +413,13 @@ class TestSupernovaController(unittest.TestCase):
         (deviceFound, bmi_device) = i3c.find_target_device_by_pid(target_pid)
 
         self.assertEqual(True, deviceFound, "Failed to find BMI323, is it connected?")
-        self.assertDictContainsSubset({'bcr': 6, 'dcr': 239, 'pid': ["0x07", "0x70", "0x10", "0x43", "0x10", "0x00"]}, bmi_device, "Failed to find BMI323, is it connected?")
+        self.assertDictContainsSubset({"bcr": 6, "dcr": 239, "pid": ["0x07", "0x70", "0x10", "0x43", "0x10", "0x00"]}, bmi_device, "Failed to find BMI323, is it connected?")
 
     def test_toggle_handle_ibi_BMI323(self):
         if self.use_simulator:
             self.skipTest("For real device only")
         
         self.device.on_notification(name="ibi", filter_func=_is_ibi, handler_func=_handle_ibi)
-
-        self.device.open()
 
         i3c = self.device.create_interface("i3c.controller")
         i3c.init_bus(3300)
@@ -460,7 +450,7 @@ class TestSupernovaController(unittest.TestCase):
 
         self.assertEqual(len(caught_ibis), 5)
         for ibi in caught_ibis:
-            self.assertDictEqual({'dynamic_address': target_address, 'controller_response': 'IBI_ACKED_WITH_PAYLOAD', 'mdb': 2}, ibi)
+            self.assertDictEqual({"dynamic_address": target_address, "controller_response": "IBI_ACKED_WITH_PAYLOAD", "mdb": 2}, ibi)
 
     def test_spi_controller_set_bus_voltage(self):
         spi_controller = self.device.create_interface("spi.controller")
