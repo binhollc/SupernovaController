@@ -435,6 +435,14 @@ class SupernovaI3CBlockingInterface:
                 return response["data"] if response["descriptor"] and response["descriptor"]["dataLength"] > 0 else None
             elif command_name in ["ccc_unicast_setmrl", "ccc_unicast_setmwl", "ccc_broadcast_setmwl", "ccc_broadcast_setmrl"]:
                 return response["data"]
+            elif command_name == "ccc_getxtime":
+                return {
+                    "supportedModesByte": response["supportedModes"]["value"][1],
+                    "stateByte": response["state"]["value"][1],
+                    "frequency": response["frequency"]["value"] * 0.5, # in MHz
+                    "inaccuracy": response["inaccuracy"]["value"] * 0.1 # in %
+                }
+            
             return None
         def format_error_response_payload(command_name, response):
             error_data = None
@@ -808,20 +816,32 @@ class SupernovaI3CBlockingInterface:
 
     def ccc_getxtime(self, target_address):
         """
-        Performs a GETXTIME (Get Extra Timing Information) operation on a target device on the I3C bus.
+        Performs a GETXTIME (Get Exchange Timing Information) operation on a target device on the I3C bus.
 
-        This method requests the Extra Timing Information from the specified target device.
+        This method requests the Exchange Timing Information from the specified target device.
         The operation's success status is checked, and it returns a tuple indicating whether the operation
         was successful along with the relevant data or error message.
 
         Args:
-        target_address: The address of the target device on the I3C bus from which the Extra Timing Information is requested.
+        target_address: The address of the target device on the I3C bus from which the Exchange Timing Information is requested.
 
         Returns:
         tuple: A tuple containing two elements:
             - The first element is a Boolean indicating the success (True) or failure (False) of the operation.
-            - The second element is either a dictionary containing the Extra Timing Information and its length, indicating
-                success, or an error message detailing the failure.
+            - The second element is either a dictionary containing the Exchange Timing Information and its length, indicating
+                success, or an error message detailing the failure. The dictionary is of shape:
+                ```
+                {
+                    "supportedModesByte": int,
+                    "stateByte": int,
+                    "frequency": int
+                    "inaccuracy": int
+                }
+                ```
+        Notes:
+            - The supportedModesByte and StateBytes fields in the result dictionary are the decimal values of said bytes
+            - The frequency field in the result dictionary is the obtained frequency in MHz
+            - The inaccuracy field in the result dictionary is the obtained inaccuracy as a percentage
         """
         try:
             responses = self.controller.sync_submit([
