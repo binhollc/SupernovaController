@@ -172,7 +172,6 @@ class SupernovaDevice:
         for name, (filter_func, handler_func) in self.notification_handlers.items():
             if filter_func(name, supernova_response):
                 handler_func(name, supernova_response)
-                break
 
     def create_interface(self, interface_name):
         if not self.mounted:
