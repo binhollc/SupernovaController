@@ -193,6 +193,49 @@ class SupernovaI3CBlockingInterface:
 
         return result
 
+    def use_external_i3c_power_source(self):
+        """
+        Sets the bus to utilize the external power source voltage 
+
+        Returns:
+            tuple: A tuple containing two elements:
+                - The first element is a Boolean indicating the success (True) or failure (False) of the operation.
+                - The second element is either a dictionary with the bus voltage indicating success, or an error 
+                message list detailing the failure messages obtained from the device's response.
+                - The resulting dictionary is of shape 
+                    {
+                    "external_high_voltage_mV": Int,
+                    "external_low_voltage_mV": Int,
+                    }
+                    Where it each field represents the voltage set in the high and low voltage ports, in mV
+        """
+
+        try:
+            responses = self.controller.sync_submit([
+                lambda id: self.driver.useExternalSourceForI3cBusVoltage(id)
+            ])
+        except Exception as e:
+            raise BackendError(original_exception=e) from e
+
+        response = responses[0]
+        errors = []
+
+        if response["usb_error"] != "CMD_SUCCESSFUL":
+            errors.append(response["usb_error"])
+        if response["manager_error"] != "SYS_NO_ERROR":
+            errors.append(response["manager_error"])
+        if response["driver_error"] != "DAC_DRIVER_NO_ERROR":
+            errors.append(response["driver_error"])
+
+        if len(errors) > 0:
+            return (False, errors)
+
+        return (True,
+        {
+            "external_high_voltage_mV": response["external_high_voltage_mV"],
+            "external_low_voltage_mV": response["external_low_voltage_mV"],
+        })
+
     def reset_bus(self):
         """
         Resets the I3C bus to its default state.
