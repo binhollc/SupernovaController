@@ -133,6 +133,16 @@ class TestSupernovaController(unittest.TestCase):
         self.assertEqual(success, False)
         self.assertTrue("errors" in result)
 
+    def test_i3c_hdr_exit_pattern(self):
+        if self.use_simulator:
+            self.skipTest("For real device only")
+
+        i3c = self.device.create_interface("i3c.controller")
+
+        (success, result) = i3c.trigger_exit_pattern()
+
+        self.assertTupleEqual((True, None), (success, result))
+
     def test_i3c_reset_bus(self):
         if not self.use_simulator:
             self.skipTest("For simulator only")

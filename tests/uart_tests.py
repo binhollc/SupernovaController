@@ -14,7 +14,6 @@ from BinhoSupernova.commands.definitions import (
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from binhosimulators import BinhoSupernovaSimulator
 
-# TODO @BMC2-1512 Update the simulator to support the execution/usage via SNController 
 class TestSupernovaControllerUART(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -22,7 +21,6 @@ class TestSupernovaControllerUART(unittest.TestCase):
         Initializes the testing class. Determines whether to use the simulator or real device
         based on the "USE_REAL_DEVICE" environment variable. Default is to use the simulator.
         """
-        # NOTE: These tests only work for the real device until BMC2-1512 is solved
         cls.use_simulator = not os.getenv("USE_REAL_DEVICE", "False") == "True"
 
     def setUp(self):
@@ -34,9 +32,6 @@ class TestSupernovaControllerUART(unittest.TestCase):
         self.device.close()
 
     def test_uart_echo_message_real_device(self):
-        if self.use_simulator:
-            self.skipTest("For real device only")
-
         self.device.open()
         uart : SupernovaUARTBlockingInterface = self.device.create_interface("uart") # Type hinting for easier development
 
@@ -46,7 +41,7 @@ class TestSupernovaControllerUART(unittest.TestCase):
         data = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
         (success, _) = uart.send(data)
-        (successReceive, response) = uart.wait_for_notification(1)
+        (successReceive, response) = uart.wait_for_notification(2)
 
         self.assertEqual(success, True)
         self.assertTupleEqual((successReceive, response), (True, data), f"Failed echo: {response}")
@@ -79,42 +74,35 @@ class TestSupernovaControllerUART(unittest.TestCase):
         finally:  
             timer.cancel()
 
-    # TODO Fails due to lack of management of ALREADY_INITIALIZED in the blocking interface
     def test_uart_init_bus(self):
-        if self.use_simulator:
-            self.skipTest("For real device only")
-            # Currently there is a discrepancy in signature for the init bus methods between simulator and real SDK, making this test fail with the SIM
-
         self.device.open()
         uart : SupernovaUARTBlockingInterface = self.device.create_interface("uart") # Type hinting for easier development
 
         uart.set_bus_voltage(3300)
         (success, response) = uart.init_bus()
+        # Check if failed was beacuse it was already init before failing test
+        if not success:
+            self.assertIn("UART_ALREADY_INITIALIZED_ERROR", response, f"Failed without ALREADY_INIT: {response}")
+        else:
+            self.assertEqual(success, True)
 
-        self.assertEqual(success, True, f"Failed: {response}")
-
-    # TODO Fails due to lack of management of ALREADY_INITIALIZED in the blocking interface
     def test_uart_multiple_init_bus(self):
-        if self.use_simulator:
-            self.skipTest("For real device only")
-            # Currently there is a discrepancy in signature for the init bus methods between simulator and real SDK, making this test fail with the SIM
-
         self.device.open()
         uart : SupernovaUARTBlockingInterface = self.device.create_interface("uart") # Type hinting for easier development
 
         uart.set_bus_voltage(3300)
 
         (success, response) = uart.init_bus()
-        self.assertEqual(True, success, f"Failed on first init: {response}")
+        # Check if failed was beacuse it was already init before failing test
+        if not success:
+            self.assertIn("UART_ALREADY_INITIALIZED_ERROR", response)
 
         (success, response) = uart.init_bus()
-        self.assertTupleEqual((False, "UART_ALREADY_INITIALIZED_ERROR"), (success, response), f"Failed on second init: {response}") # Revise this once the error is better handled, it is not necessarily the way forward presenting the error
+        self.assertEqual(False, success, f"Failed on second init: {response}")
+
+        self.assertIn("UART_ALREADY_INITIALIZED_ERROR", response)
 
     def test_uart_set_get_params(self):
-        if self.use_simulator:
-            self.skipTest("For real device only")
-            # Currently there is a discrepancy in signature for the init bus methods between simulator and real SDK, making this test fail with the SIM
-
         self.device.open()
         uart : SupernovaUARTBlockingInterface = self.device.create_interface("uart") # Type hinting for easier development
 

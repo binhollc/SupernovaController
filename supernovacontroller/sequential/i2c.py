@@ -1,6 +1,6 @@
 from transfer_controller import TransferController
 from BinhoSupernova.Supernova import Supernova
-from supernovacontroller.utils.status_codes import CodeTranslator
+from BinhoSupernova.commands.definitions import I2cPullUpResistorsValue
 from supernovacontroller.errors import BackendError
 from supernovacontroller.errors import BusVoltageError
 
@@ -161,12 +161,12 @@ class SupernovaI2CBlockingInterface:
         except Exception as e:
             raise BackendError(original_exception=e) from e
 
-        response_ok = responses[0]["name"] == "SET I2C-SPI-UART BUS VOLTAGE" and responses[0]["result"] == 0
+        response_ok = responses[0]["name"] == "SET I2C-SPI-UART BUS VOLTAGE" and responses[0]["result"] == "SYS_NO_ERROR"
         if response_ok:
             result = (True, voltage_mv)
             self.bus_voltage = voltage_mv
         else:
-            result = (False, "Set bus voltage failed")
+            result = (False, responses[0]["result"])
             self.bus_voltage = None
 
         return result
@@ -209,6 +209,72 @@ class SupernovaI2CBlockingInterface:
 
         return (True, self.bus_voltage)
 
+    __pull_up_resistor_values = {
+        "150" : I2cPullUpResistorsValue.I2C_PULLUP_150Ohm,
+        "220" : I2cPullUpResistorsValue.I2C_PULLUP_220Ohm,
+        "330" : I2cPullUpResistorsValue.I2C_PULLUP_330Ohm,
+        "470" : I2cPullUpResistorsValue.I2C_PULLUP_470Ohm,
+        "680" : I2cPullUpResistorsValue.I2C_PULLUP_680Ohm,
+        "1000" : I2cPullUpResistorsValue.I2C_PULLUP_1kOhm,
+        "1500" : I2cPullUpResistorsValue.I2C_PULLUP_1_5kOhm,
+        "2200" : I2cPullUpResistorsValue.I2C_PULLUP_2_2kOhm,
+        "3300" : I2cPullUpResistorsValue.I2C_PULLUP_3_3kOhm,
+        "4700" : I2cPullUpResistorsValue.I2C_PULLUP_4_7kOhm,
+        "10000" : I2cPullUpResistorsValue.I2C_PULLUP_10kOhm,
+    }
+
+    def __get_set_pullup_response_errors(self, response):
+        result = []
+        if response["usb_error"] != "CMD_SUCCESSFUL": result.append(response["usb_error"])
+        if response["manager_error"] != "I2C_NO_ERROR": result.append(response["manager_error"])
+        if response["driver_error"] != "POTENTIOMETER_SET_VALUE_NO_ERROR": result.append(response["driver_error"])
+        return result
+
+    def set_pull_up_resistors(self, resistor_value_in_ohm: int):
+        """
+        Configures the Supernova's I2C Pull-Up Resistor values for SDA and SCL signals  
+
+        Args:
+            resistor_value_in_ohm (int, required): The resistance to set the pull-up resistors in Ohms  
+
+            Supported resistance values are:  
+            - 150, 220, 330, 470, 680, 1000, 1500, 2200, 3300, 4700 and 10000 Ohms
+
+        Returns:
+            A tuple containing two elements:
+                - The first element is a Boolean indicating the success (True) or failure (False)
+                of the operation.
+                - The second element is either the set value (indicating success) or an error
+                message detailing the failure.  
+
+        Notes: 
+            - By default the pull up resistors are set to 10000 Ohms
+            - This feature is only supported in Rev. C Supernovas, otherwise it fails.  
+
+        Raises:
+            ValueError: If an unsupported resistance value is attempted to be set
+        """
+
+        resistor_value = self.__pull_up_resistor_values.get(str(resistor_value_in_ohm))
+        if resistor_value is None:
+            # unsupported resistor value
+            raise ValueError
+
+        responses = None
+        try:
+            responses = self.controller.sync_submit([
+                lambda transfer_id: self.driver.i2cSetPullUpResistors(id=transfer_id, pullUpResistorsValue=resistor_value),
+            ])
+        except Exception as e:
+            raise BackendError(original_exception=e) from e
+        
+        errors = self.__get_set_pullup_response_errors(responses[0])
+        success = responses[0]["name"].strip() == "I2C SET PULL UP RESISTORS" and len(errors) == 0
+        if not success:
+           return (False, errors)
+
+        return (True, resistor_value_in_ohm)
+
     def write(self, address, register, data):
         """
         Performs a write operation to a specified register on an I2C device.
@@ -244,11 +310,11 @@ class SupernovaI2CBlockingInterface:
         except Exception as e:
             raise BackendError(original_exception=e) from e
 
-        response_ok = responses[0]["name"] == "I2C WRITE" and responses[0]["status"] == 0
+        response_ok = responses[0]["name"] == "I2C WRITE" and responses[0]["status"] == "NO_TRANSFER_ERROR"
         if response_ok:
             result = (True, None)
         else:
-            result = (False, CodeTranslator.get_message("i2c", responses[0]["status"]))
+            result = (False, responses[0]["status"])
 
         return result
 
@@ -287,12 +353,12 @@ class SupernovaI2CBlockingInterface:
         except Exception as e:
             raise BackendError(original_exception=e) from e
 
-        response_ok = responses[0]["name"] == "I2C WRITE WITHOUT STOP" and responses[0]["status"] == 0
+        response_ok = responses[0]["name"] == "I2C WRITE WITHOUT STOP" and responses[0]["status"] == "NO_TRANSFER_ERROR"
         
         if response_ok:
             result = (True, None)
         else:
-            result = (False, CodeTranslator.get_message("i2c", responses[0]["status"]))
+            result = (False, responses[0]["status"])
 
         return result
     
@@ -330,11 +396,11 @@ class SupernovaI2CBlockingInterface:
         except Exception as e:
             raise BackendError(original_exception=e) from e
 
-        response_ok = responses[0]["name"] == "I2C READ" and responses[0]["status"] == 0
+        response_ok = responses[0]["name"] == "I2C READ" and responses[0]["status"] == "NO_TRANSFER_ERROR"
         if response_ok:
             result = (True, responses[0]["data"])
         else:
-            result = (False, CodeTranslator.get_message("i2c", responses[0]["status"]))
+            result = (False, responses[0]["status"])
 
         return result
 
@@ -373,10 +439,10 @@ class SupernovaI2CBlockingInterface:
         except Exception as e:
             raise BackendError(original_exception=e) from e
 
-        response_ok = responses[0]["name"] == "I2C READ FROM" and responses[0]["status"] == 0
+        response_ok = responses[0]["name"] == "I2C READ FROM" and responses[0]["status"] == "NO_TRANSFER_ERROR"
         if response_ok:
             result = (True, responses[0]["data"])
         else:
-            result = (False, CodeTranslator.get_message("i2c", responses[0]["status"]))
+            result = (False, responses[0]["status"])
 
         return result

@@ -54,10 +54,10 @@ class SupernovaGPIOInterface:
         except Exception as e:
             raise BackendError(original_exception=e) from e
 
-        response_success = responses[0]["name"] == expected_command_name and responses[0]["result"] == 0
+        response_success = responses[0]["name"] == expected_command_name and responses[0]["result"] == "SYS_NO_ERROR"
 
         if not response_success:
-            return (False, "Set pins voltage failed")
+            return (False, responses[0]["result"])
 
         self.pins_voltage = voltage_mv
 

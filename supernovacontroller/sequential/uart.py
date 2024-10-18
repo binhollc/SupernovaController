@@ -159,11 +159,24 @@ class SupernovaUARTBlockingInterface:
         """
 
         # Check if the USB, manager or driver had issues handling the UART request
-        return all([
-            response["usb_error"] == "CMD_SUCCESSFUL",
-            response["manager_error"] == "UART_NO_ERROR",
-            response["driver_error"] == "NO_TRANSFER_ERROR"
-        ])
+        return len(self.__get_response_errors(response)) == 0
+    
+    def __get_response_errors(self, response: dict):
+        """
+        Checks if the response received any errors from the Supernova and returns them (if any).
+
+        Args:
+        response (dict): A dictionary containing response data from the Supernova UART request.
+
+        Returns:
+        [ String ]: List of errors, in order usb_error, manager_error and driver_error.
+        """
+
+        result = []
+        if response["usb_error"] != "CMD_SUCCESSFUL": result.append(response["usb_error"])
+        if response["manager_error"] != "UART_NO_ERROR": result.append(response["manager_error"])
+        if response["driver_error"] != "NO_TRANSFER_ERROR": result.append(response["driver_error"])
+        return result
     
     def set_bus_voltage(self, voltage_mv: int):
         """
@@ -201,7 +214,7 @@ class SupernovaUARTBlockingInterface:
             raise BackendError(original_exception=e) from e
         
         # Check if the response is of the expected type (by name) and it was successful 
-        response_success = responses[0]["name"] == "SET I2C-SPI-UART BUS VOLTAGE" and responses[0]["result"] == 0
+        response_success = responses[0]["name"] == "SET I2C-SPI-UART BUS VOLTAGE" and responses[0]["result"] == "SYS_NO_ERROR"
 
         # If successful, update the bus voltage
         if response_success:
@@ -209,7 +222,7 @@ class SupernovaUARTBlockingInterface:
             self.bus_voltage = voltage_mv
         # If not successful update method response
         else:
-            result = (False, "Set bus voltage failed")
+            result = (False, responses[0]["result"])
             self.bus_voltage = None
 
         return result
@@ -260,9 +273,9 @@ class SupernovaUARTBlockingInterface:
             raise BackendError(original_exception=e) from e
         
         # Check if the response is of the expected type (by name) and it was successful 
-        response_success = responses[0]["name"] == COMMANDS_DICTIONARY[UART_CONTROLLER_INIT]["name"] and self.__check_if_response_is_correct(responses[0])
+        response_success = responses[0]["name"].strip() == COMMANDS_DICTIONARY[UART_CONTROLLER_INIT]["name"].strip() and self.__check_if_response_is_correct(responses[0])
 
-        return (response_success, "Success" if response_success else "Init failed, error from the Supernova")
+        return (response_success, "Success" if response_success else self.__get_response_errors(responses[0]))
 
     def set_parameters(self, baudrate: UartControllerBaudRate=None, hardware_handshake: bool=None , parity: UartControllerParity=None, data_size: UartControllerDataSize=None, stop_bit: UartControllerStopBit=None):
         """
@@ -310,9 +323,9 @@ class SupernovaUARTBlockingInterface:
             raise BackendError(original_exception=e) from e
 
         # Check if the response is of the expected type (by name) and it was successful 
-        response_success = responses[0]["name"] == COMMANDS_DICTIONARY[UART_CONTROLLER_SET_PARAMETERS]["name"] and self.__check_if_response_is_correct(responses[0])
+        response_success = responses[0]["name"].strip() == COMMANDS_DICTIONARY[UART_CONTROLLER_SET_PARAMETERS]["name"].strip() and self.__check_if_response_is_correct(responses[0])
 
-        return (response_success, "Success" if response_success else "Set Parameters failed, error from the Supernova")
+        return (response_success, "Success" if response_success else self.__get_response_errors(responses[0]))
 
     def get_parameters(self):
         """
@@ -359,9 +372,9 @@ class SupernovaUARTBlockingInterface:
             raise BackendError(original_exception=e) from e
         
         # Check if the response is of the expected type (by name) and it was successful 
-        response_success =  responses[0]["name"] == COMMANDS_DICTIONARY[UART_CONTROLLER_SEND]["name"] and self.__check_if_response_is_correct(responses[0])
+        response_success =  responses[0]["name"].strip() == COMMANDS_DICTIONARY[UART_CONTROLLER_SEND]["name"].strip() and self.__check_if_response_is_correct(responses[0])
             
-        return (response_success, "Success" if response_success else "Send request failed, error from the Supernova")
+        return (response_success, "Success" if response_success else self.__get_response_errors(responses[0]))
     
     def wait_for_notification(self, timeout):
         """
@@ -390,7 +403,7 @@ class SupernovaUARTBlockingInterface:
         response_ok = self.__check_if_response_is_correct(notification)
         # If there's an error in the received notification, return an error message
         if response_ok is False:
-            return (response_ok, "Error from Supernova while receiving UART data")
+            return (response_ok, self.__get_response_errors(notification))
         
         # Return the received payload if the notification is correct
         return (response_ok, notification["payload"])    

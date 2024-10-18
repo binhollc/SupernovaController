@@ -7,6 +7,7 @@ from BinhoSupernova.commands.definitions import I3cSetFeatureSelector
 from BinhoSupernova.commands.definitions import I3cClearFeatureSelector
 from BinhoSupernova.commands.definitions import I3cPushPullTransferRate
 from BinhoSupernova.commands.definitions import I3cOpenDrainTransferRate
+from BinhoSupernova.commands.definitions import I3cChangeDynAddrError
 from supernovacontroller.errors import BusVoltageError
 from supernovacontroller.errors import BackendError
 
@@ -102,7 +103,7 @@ class SupernovaI3CBlockingInterface:
         except Exception as e:
             raise BackendError(original_exception=e) from e
 
-        response_ok = responses[0]["name"] == "SET I3C BUS VOLTAGE" and responses[0]["result"] == 0
+        response_ok = responses[0]["name"] == "SET I3C BUS VOLTAGE" and responses[0]["result"] == "SYS_NO_ERROR"
         if response_ok:
             result = (True, voltage)
             # We want to set the bus_voltage when we know the operation was successful
@@ -185,10 +186,10 @@ class SupernovaI3CBlockingInterface:
         # TODO: Toggle IBIs off
 
         status = responses[0]["result"]
-        if status == "I3C_BUS_INIT_SUCCESS":
+        if status == "DAA_SUCCESS" and "NO_TRANSFER_ERROR" in responses[0]["errors"]:
             result = (True, voltage)
         else:
-            result = (False, {"errors": responses[0]["errors"]})
+            result = (False, {"errors": responses[0]["result"]})
 
         return result
 
@@ -372,11 +373,12 @@ class SupernovaI3CBlockingInterface:
         except Exception as e:
             raise BackendError(original_exception=e) from e
 
-        status = responses[0]["errors"][0]
-        if status == "NO_TRANSFER_ERROR":
+        status = responses[0]["result"]
+
+        if status == I3cChangeDynAddrError.I3C_CHANGE_DYNAMIC_ADDRESS_SUCCESS:
             result = (True, "OK")
         else:
-            result = (False, responses[0]["errors"])
+            result = (False, status)
 
         return result
 
@@ -408,9 +410,34 @@ class SupernovaI3CBlockingInterface:
             result = (False, errors)
 
         return result
-        
+
+    def trigger_exit_pattern(self):
+        """
+        Triggers the HDR exit pattern on the I3C bus.
+
+        Returns:
+        tuple: A tuple containing two elements:
+            - The first element is a Boolean indicating the success (True) or failure (False) of the operation.
+            - The second element is either None indicating success, or an error message
+                detailing the failure, obtained from the device's response.
+        """
+        try:
+            responses = self.controller.sync_submit([
+                lambda id: self.driver.i3cTriggerExitPattern(id)
+            ])
+        except Exception as e:
+            raise BackendError(original_exception=e) from e
+
+        response = responses[0]
+        errors = self.__get_error_from_response(response)
+
+        if len(errors) != 0: # manager, usb and/or driver have error
+            return (False, errors)
+
+        return (True, None)
+
     def _process_response(self, command_name, responses, extra_data=None):
-        def format_response_payload(command_name, response):
+        def format_successful_response_payload(command_name, response):
             if command_name == "write":
                 return None
             elif command_name == "read":
@@ -425,6 +452,26 @@ class SupernovaI3CBlockingInterface:
                 return response["maxReadLength"]
             elif command_name == "ccc_getmwl":
                 return response["maxWriteLength"]
+            elif command_name == "ccc_getxtime":
+                return {
+                 "supportedModes": response["supportedModes"]["value"][1],
+                 "currentState": response["state"]["value"][1],
+                 "frequency": response["frequency"]["value"],
+                 "inaccuracy": response["inaccuracy"]["value"],
+                }
+            elif command_name == "ccc_getmxds":
+                return {
+                 "maxWrite": response["maxWr"]["value"][1],
+                 "maxRead": response["maxRd"]["value"][1],
+                 "maxReadTurnaround": float(response["maxRdTurn"][1].split(" ")[0]),
+                }
+            elif command_name == "ccc_getcaps":
+                return [
+                    response["caps1"]["value"][1],
+                    response["caps2"]["value"][1],
+                    response["caps3"]["value"][1],
+                    response["caps4"]["value"]
+                ]
             elif command_name == "ccc_get_status":
                 return response["data"]
             elif command_name in ["ccc_setnewda", "ccc_rstdaa"]:
@@ -434,17 +481,29 @@ class SupernovaI3CBlockingInterface:
             elif command_name in ["ccc_unicast_setmrl", "ccc_unicast_setmwl", "ccc_broadcast_setmwl", "ccc_broadcast_setmrl"]:
                 return response["data"]
             return None
+        def format_error_response_payload(command_name, response):
+            error_data = None
+            if command_name in ["ccc_setaasa", "ccc_setdasa", "ccc_entdaa"]:
+                if (response['invalidAddresses']):
+                    error_data = response['invalidAddresses']
+                result = {"error": response["header"]["result"]}
+                if error_data: result["error_data"] = error_data
+                return result
+
+            return response["descriptor"]["errors"][0]
 
         response = responses[0]
-        if response["header"]["result"] == "I3C_TRANSFER_SUCCESS":
-            data = format_response_payload(command_name, response)
-            result_data = data
-            if extra_data:
-                result_data.update(extra_data)
-            result = (True, result_data)
+        success = response["header"]["result"] == "I3C_TRANSFER_SUCCESS" or response["header"]["result"] == "DAA_SUCCESS"
+
+        if success:
+            data = format_successful_response_payload(command_name, response)
         else:
-            result = (False, response["descriptor"]["errors"][0])
-        return result
+            data = format_error_response_payload(command_name, response)
+
+        if extra_data:
+            data.update(extra_data)
+
+        return (success, data)
 
     def write(self, target_address, mode: TransferMode, subaddress: [], buffer: list):
         """
@@ -711,10 +770,10 @@ class SupernovaI3CBlockingInterface:
         target_address: The address of the target device on the I3C bus from which the Max Data Speed information is requested.
 
         Returns:
-        tuple: A tuple containing two elements:
-            - The first element is a Boolean indicating the success (True) or failure (False) of the operation.
-            - The second element is either a dictionary containing the Max Data Speed information and its length, indicating
-                success, or an error message detailing the failure.
+            tuple: A tuple containing two elements:
+                - The first element is a Boolean indicating the success (True) or failure (False) of the operation.
+                - The second element is either a dictionary containing the Max Data Speed information bytes as int and the Turn Around as float in ms,
+                or an error message detailing the failure.
         """
         try:
             responses = self.controller.sync_submit([
@@ -804,10 +863,10 @@ class SupernovaI3CBlockingInterface:
         target_address: The address of the target device on the I3C bus from which the Extra Timing Information is requested.
 
         Returns:
-        tuple: A tuple containing two elements:
-            - The first element is a Boolean indicating the success (True) or failure (False) of the operation.
-            - The second element is either a dictionary containing the Extra Timing Information and its length, indicating
-                success, or an error message detailing the failure.
+            tuple: A tuple containing two elements:
+                - The first element is a Boolean indicating the success (True) or failure (False) of the operation.
+                - The second element is either a dictionary containing the Extra Timing Information Bytes as int, indicating
+                    success, or an error message detailing the failure.
         """
         try:
             responses = self.controller.sync_submit([
@@ -835,10 +894,10 @@ class SupernovaI3CBlockingInterface:
         target_address: The address of the target device on the I3C bus from which the Capabilities information is requested.
 
         Returns:
-        tuple: A tuple containing two elements:
-            - The first element is a Boolean indicating the success (True) or failure (False) of the operation.
-            - The second element is either a dictionary containing the Capabilities information and its length, indicating
-                success, or an error message detailing the failure.
+            tuple: A tuple containing two elements:
+                - The first element is a Boolean indicating the success (True) or failure (False) of the operation.
+                - The second element is either a list with the CAP byte values (as ints) ordered ascendingly, 
+                or an error message detailing the failure.
         """
         try:
             responses = self.controller.sync_submit([
@@ -880,6 +939,43 @@ class SupernovaI3CBlockingInterface:
             raise BackendError(original_exception=e) from e
 
         return self._process_response("ccc_rstdaa", responses)
+
+    def ccc_entdaa(self, device_table : dict):
+        """
+        Performs a broadcast ENTDAA (Enter Dynamic Address Assignment) operation on the I3C Bus.
+
+        This CCC indicates to all I3C Devices to enter the Dynamic Address Assignment procedure.
+        Target Devices that already have a Dynamic Address assigned shall not respond to this command.
+
+        Args:
+            device_table: A dictionary of the shape:  
+            ```  
+            {
+                "static_address" : static_address,
+                "dynamic_address" : dynamic_address,
+                "bcr" : bcr,
+                "dcr" : dcr,
+                "pid" : pid
+            }  
+            ```
+
+        Returns:
+            tuple: A tuple containing two elements:
+                - The first element is a Boolean indicating the success (True) or failure (False) of the operation.
+                - The second element is either an error message detailing the failure or a success message.
+                Specific data is usually not returned in this operation, only the success or failure status.
+        """
+        try:
+            responses = self.controller.sync_submit([
+                lambda id: self.driver.i3cENTDAA(
+                    id,
+                    device_table
+                )
+            ])
+        except Exception as e:
+            raise BackendError(original_exception=e) from e
+
+        return self._process_response("ccc_entdaa", responses)
 
     def ccc_broadcast_enec(self, events: list):
         """
@@ -1287,13 +1383,16 @@ class SupernovaI3CBlockingInterface:
 
         return self._process_response("ccc_broadcast_setmrl", responses)
 
-    def ccc_setaasa(self):
+    def ccc_setaasa(self, static_addresses : list[int]):
         """
         Performs a broadcast SETAASA (Set All Agents to Static Address) operation on the I3C bus.
 
         This method sends a broadcast command to set all agents on the I3C bus to a static address.
         The operation's success status is checked, and it returns a tuple indicating whether the operation
         was successful along with the relevant data or error message.
+
+        Args:
+        static_addresses: A list of the static addresses to update the internal device table.
 
         Returns:
         tuple: A tuple containing two elements:
@@ -1305,6 +1404,7 @@ class SupernovaI3CBlockingInterface:
             responses = self.controller.sync_submit([
                 lambda id: self.driver.i3cSETAASA(
                     id,
+                    static_addresses,
                     self.push_pull_clock_freq_mhz,
                     self.open_drain_clock_freq_mhz,
                 )
@@ -1372,16 +1472,17 @@ class SupernovaI3CBlockingInterface:
 
         return self._process_response("ccc_unicast_endxfer", responses)
 
-    def ccc_broadcast_setxtime(self, timing_parameter):
+    def ccc_broadcast_setxtime(self, timing_parameter, aditional_data = []):
         """
-        Performs a broadcast SETXTIME (Set Extra Timing) operation on the I3C bus.
+        Performs a broadcast SETXTIME (Set Exchange Timing) operation on the I3C bus.
 
-        This method sends a broadcast command to configure extra timing parameters for all devices on the I3C bus.
+        This method sends a broadcast command to configure exchange timing parameters for all devices on the I3C bus.
         The operation's success status is checked, and it returns a tuple indicating whether the operation
         was successful along with the relevant data or error message.
 
         Args:
-        timing_parameter: The extra timing parameter to be set for all devices on the I3C bus.
+            timing_parameter: The exchange timing parameter to be set for all devices on the I3C bus, A.K.A. the SubCommand Byte.
+            aditional_data (optional): Additional data bytes which may be neccesary for certains Sub-Commands.
 
         Returns:
         tuple: A tuple containing two elements:
@@ -1393,9 +1494,10 @@ class SupernovaI3CBlockingInterface:
             responses = self.controller.sync_submit([
                 lambda id: self.driver.i3cBroadcastSETXTIME(
                     id,
-                    timing_parameter,
                     self.push_pull_clock_freq_mhz,
                     self.open_drain_clock_freq_mhz,
+                    timing_parameter,
+                    aditional_data
                 )
             ])
         except Exception as e:
@@ -1404,7 +1506,7 @@ class SupernovaI3CBlockingInterface:
         return self._process_response("ccc_broadcast_setxtime", responses)
 
     def ccc_unicast_setxtime(self, target_address):
-        pass
+        pass # TODO see issue BMC2-1662
 
     def ccc_broadcast_setbuscon(self, context: int, data: list = []):
         """

@@ -134,7 +134,7 @@ class SupernovaSPIControllerBlockingInterface:
             raise BackendError(original_exception=e) from e
         
         # Check if the response is of the expected type (by name) and it was successful 
-        response_success = responses[0]["name"] == "SET I2C-SPI-UART BUS VOLTAGE" and responses[0]["result"] == 0
+        response_success = responses[0]["name"] == "SET I2C-SPI-UART BUS VOLTAGE" and responses[0]["result"] == "SYS_NO_ERROR"
 
         # If successful, update the bus voltage
         if response_success:
@@ -142,7 +142,7 @@ class SupernovaSPIControllerBlockingInterface:
             self.bus_voltage = voltage_mv
         # If not successful update method response
         else:
-            result = (False, "Set bus voltage failed")
+            result = (False, responses[0]["result"])
             self.bus_voltage = None
 
         return result
