@@ -210,6 +210,7 @@ class SupernovaI2CBlockingInterface:
         return (True, self.bus_voltage)
 
     __pull_up_resistor_values = {
+        "DISABLE" : I2cPullUpResistorsValue.I2C_PULLUP_DISABLE,
         "150" : I2cPullUpResistorsValue.I2C_PULLUP_150Ohm,
         "220" : I2cPullUpResistorsValue.I2C_PULLUP_220Ohm,
         "330" : I2cPullUpResistorsValue.I2C_PULLUP_330Ohm,

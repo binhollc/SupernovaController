@@ -51,6 +51,8 @@ class TestSupernovaController(unittest.TestCase):
         if self.use_simulator:
             self.skipTest("For real device only")
 
+        (success, message) = self.i2c.set_pull_up_resistors("DISABLE")
+        self.assertTupleEqual((True, "DISABLE"), (success, message), f"Disabling Pullup failed: {message}")
         (success, message) = self.i2c.set_pull_up_resistors(150)
         self.assertTupleEqual((True, 150), (success, message), f"Setting 150 Ohm failed: {message}")
         (success, message) = self.i2c.set_pull_up_resistors(220)
