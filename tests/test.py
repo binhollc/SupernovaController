@@ -1,3 +1,4 @@
+import threading
 import unittest
 from unittest import mock
 from unittest.mock import patch
@@ -41,6 +42,13 @@ class TestSupernovaController(unittest.TestCase):
     def tearDown(self):
         self.device.close()
 
+    def __validate_device_info(self, deviceInfo):
+        self.assertRegex(deviceInfo["hw_version"], r"^[A-Za-z0-9]$", "Invalid hw_version format")
+        self.assertRegex(deviceInfo["fw_version"], r"^\d+\.\d+\.\d+$", "Invalid fw_version format")
+        self.assertRegex(deviceInfo["serial_number"], r"^[A-Fa-f0-9]+$", "Invalid serial_number format")
+        self.assertEqual(deviceInfo["manufacturer"], "Binho LLC", "Invalid manufacturer string")
+        self.assertEqual(deviceInfo["product_name"], "Binho Supernova", "Invalid product name")
+
     def test_open_device_with_wrong_address(self):
         d = SupernovaDevice()
 
@@ -48,11 +56,7 @@ class TestSupernovaController(unittest.TestCase):
             d.open("whatever")
 
     def test_open_device_and_close(self):
-        self.assertRegex(self.device_info["hw_version"], r"^[A-Za-z0-9]$", "Invalid hw_version format")
-        self.assertRegex(self.device_info["fw_version"], r"^\d+\.\d+\.\d+$", "Invalid fw_version format")
-        self.assertRegex(self.device_info["serial_number"], r"^[A-Fa-f0-9]+$", "Invalid serial_number format")
-        self.assertEqual(self.device_info["manufacturer"], "Binho LLC", "Invalid manufacturer string")
-        self.assertEqual(self.device_info["product_name"], "Binho Supernova", "Invalid product name")
+        self.__validate_device_info(self.device_info)
 
     def test_open_device_more_than_once(self):
         if not self.use_simulator:
@@ -60,6 +64,31 @@ class TestSupernovaController(unittest.TestCase):
 
         with self.assertRaises(DeviceAlreadyMountedError):
             self.device.open()
+
+    def test_id_overflow(self):
+        if self.use_simulator:
+            self.skipTest("For real device only")
+
+        d = SupernovaDevice(start_id=655535)
+        timeout = 3
+
+        device_info = None
+        def open_device():
+            nonlocal device_info
+            try:
+                device_info = d.open()
+            except Exception as e:
+                device_info = e
+
+        thread = threading.Thread(target=open_device, daemon=True)
+        thread.start()
+        thread.join(timeout)
+
+        if thread.is_alive():
+            self.fail("Transaction ID over 65535 timed out")
+            return
+        else:
+            self.__validate_device_info(device_info)
 
     def test_create_interface_before_open_throws_error(self):
         d = SupernovaDevice()
