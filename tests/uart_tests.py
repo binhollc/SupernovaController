@@ -14,7 +14,7 @@ from BinhoSupernova.commands.definitions import (
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from binhosimulators import BinhoSupernovaSimulator
 
-class TestSupernovaControllerUART(unittest.TestCase):
+class TestUARTSupernovaController(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """
