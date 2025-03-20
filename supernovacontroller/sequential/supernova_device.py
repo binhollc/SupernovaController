@@ -1,21 +1,28 @@
-from transfer_controller import TransferController
-from BinhoSupernova import getConnectedSupernovaDevicesList;
-from BinhoSupernova.Supernova import Supernova
-from BinhoSupernova.commands.definitions import GetUsbStringSubCommand
-from BinhoSupernova.utils.system_message import SystemOpcode
-from supernovacontroller.errors import DeviceOpenError
-from supernovacontroller.errors import DeviceNotMountedError
-from supernovacontroller.errors import DeviceAlreadyMountedError
-from supernovacontroller.errors import UnknownInterfaceError
-from supernovacontroller.errors import BackendError
+import inspect
+import os
 import queue
 import threading
+
+from BinhoSupernova import getConnectedSupernovaDevicesList
+from BinhoSupernova.commands.definitions import GetUsbStringSubCommand
+from BinhoSupernova.Supernova import Supernova
+from BinhoSupernova.utils.system_message import SystemOpcode
+from transfer_controller import TransferController
+
+from supernovacontroller.errors import (BackendError,
+                                        DeviceAlreadyMountedError,
+                                        DeviceNotMountedError, DeviceOpenError,
+                                        UnknownInterfaceError)
+
+from ..utils.logging import log_instance_method_calls, logging
+from .gpio import SupernovaGPIOInterface
 from .i2c import SupernovaI2CBlockingInterface
 from .i3c import SupernovaI3CBlockingInterface
-from .uart import SupernovaUARTBlockingInterface
 from .i3c_target import SupernovaI3CTargetBlockingInterface
 from .spi_controller import SupernovaSPIControllerBlockingInterface
-from .gpio import SupernovaGPIOInterface
+from .uart import SupernovaUARTBlockingInterface
+
+logger = logging.getLogger("supernovacontroller")
 
 def id_gen(start=0):
     i = start
@@ -50,6 +57,15 @@ class SupernovaDevice:
         }
 
         self.mounted = False
+
+    @property
+    def driver(self):
+        return self.__driver
+
+    # we override driver setter to wrap with log (if enabled)
+    @driver.setter
+    def driver(self, newDriver):
+        self.__driver = log_instance_method_calls(newDriver, os.environ.get('PYTHON_LOG_PATH') is not None)
 
     def open(self, usb_address=None):
         if self.mounted:
@@ -176,6 +192,8 @@ class SupernovaDevice:
             self.notification_handlers[name] = (filter_func, handler_func)
 
     def _push_sdk_response(self, supernova_response, system_message):
+        logger.debug("SDK RESPONSE: supernova_response == %s, system_message == %s", supernova_response, system_message)
+
         if supernova_response:
             # Check if the id is non-zero (zero is reserved for notifications)
             if supernova_response["id"] != 0:

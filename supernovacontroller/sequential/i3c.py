@@ -186,7 +186,7 @@ class SupernovaI3CBlockingInterface:
         # TODO: Toggle IBIs off
 
         status = responses[0]["result"]
-        if status == "DAA_SUCCESS" and responses[0]["errors"] == "NO_TRANSFER_ERROR":
+        if status == "DAA_SUCCESS" and "NO_TRANSFER_ERROR" in responses[0]["errors"]:
             result = (True, voltage)
         else:
             result = (False, {"errors": responses[0]["result"]})
@@ -454,7 +454,32 @@ class SupernovaI3CBlockingInterface:
             result = (False, errors)
 
         return result
-        
+
+    def trigger_exit_pattern(self):
+        """
+        Triggers the HDR exit pattern on the I3C bus.
+
+        Returns:
+        tuple: A tuple containing two elements:
+            - The first element is a Boolean indicating the success (True) or failure (False) of the operation.
+            - The second element is either None indicating success, or an error message
+                detailing the failure, obtained from the device's response.
+        """
+        try:
+            responses = self.controller.sync_submit([
+                lambda id: self.driver.i3cTriggerExitPattern(id)
+            ])
+        except Exception as e:
+            raise BackendError(original_exception=e) from e
+
+        response = responses[0]
+        errors = self.__get_error_from_response(response)
+
+        if len(errors) != 0: # manager, usb and/or driver have error
+            return (False, errors)
+
+        return (True, None)
+
     def _process_response(self, command_name, responses, extra_data=None):
         def format_successful_response_payload(command_name, response):
             if command_name == "write":
@@ -471,6 +496,26 @@ class SupernovaI3CBlockingInterface:
                 return response["maxReadLength"]
             elif command_name == "ccc_getmwl":
                 return response["maxWriteLength"]
+            elif command_name == "ccc_getxtime":
+                return {
+                 "supportedModes": response["supportedModes"]["value"][1],
+                 "currentState": response["state"]["value"][1],
+                 "frequency": response["frequency"]["value"],
+                 "inaccuracy": response["inaccuracy"]["value"],
+                }
+            elif command_name == "ccc_getmxds":
+                return {
+                 "maxWrite": response["maxWr"]["value"][1],
+                 "maxRead": response["maxRd"]["value"][1],
+                 "maxReadTurnaround": float(response["maxRdTurn"][1].split(" ")[0]),
+                }
+            elif command_name == "ccc_getcaps":
+                return [
+                    response["caps1"]["value"][1],
+                    response["caps2"]["value"][1],
+                    response["caps3"]["value"][1],
+                    response["caps4"]["value"]
+                ]
             elif command_name == "ccc_get_status":
                 return response["data"]
             elif command_name in ["ccc_setnewda", "ccc_rstdaa"]:
@@ -769,10 +814,10 @@ class SupernovaI3CBlockingInterface:
         target_address: The address of the target device on the I3C bus from which the Max Data Speed information is requested.
 
         Returns:
-        tuple: A tuple containing two elements:
-            - The first element is a Boolean indicating the success (True) or failure (False) of the operation.
-            - The second element is either a dictionary containing the Max Data Speed information and its length, indicating
-                success, or an error message detailing the failure.
+            tuple: A tuple containing two elements:
+                - The first element is a Boolean indicating the success (True) or failure (False) of the operation.
+                - The second element is either a dictionary containing the Max Data Speed information bytes as int and the Turn Around as float in ms,
+                or an error message detailing the failure.
         """
         try:
             responses = self.controller.sync_submit([
@@ -862,10 +907,10 @@ class SupernovaI3CBlockingInterface:
         target_address: The address of the target device on the I3C bus from which the Extra Timing Information is requested.
 
         Returns:
-        tuple: A tuple containing two elements:
-            - The first element is a Boolean indicating the success (True) or failure (False) of the operation.
-            - The second element is either a dictionary containing the Extra Timing Information and its length, indicating
-                success, or an error message detailing the failure.
+            tuple: A tuple containing two elements:
+                - The first element is a Boolean indicating the success (True) or failure (False) of the operation.
+                - The second element is either a dictionary containing the Extra Timing Information Bytes as int, indicating
+                    success, or an error message detailing the failure.
         """
         try:
             responses = self.controller.sync_submit([
@@ -893,10 +938,10 @@ class SupernovaI3CBlockingInterface:
         target_address: The address of the target device on the I3C bus from which the Capabilities information is requested.
 
         Returns:
-        tuple: A tuple containing two elements:
-            - The first element is a Boolean indicating the success (True) or failure (False) of the operation.
-            - The second element is either a dictionary containing the Capabilities information and its length, indicating
-                success, or an error message detailing the failure.
+            tuple: A tuple containing two elements:
+                - The first element is a Boolean indicating the success (True) or failure (False) of the operation.
+                - The second element is either a list with the CAP byte values (as ints) ordered ascendingly, 
+                or an error message detailing the failure.
         """
         try:
             responses = self.controller.sync_submit([

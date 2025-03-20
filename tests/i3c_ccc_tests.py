@@ -40,8 +40,8 @@ class TestCCCSupernovaController(unittest.TestCase):
         if not deviceFound:
             self.skipTest("For BMM350")
 
-        (success, response) = self.i3c.ccc_getpid(0x08)
-        self.assertTupleEqual((True, BMM350_PID_DATA["asInt"]), (success, response))
+        (success, response) = self.i3c.ccc_getpid(bmm350["dynamic_address"])
+        self.assertTupleEqual((True, BMM350_DATA["asInt"]), (success, response))
 
         self.i3c.ccc_rstdaa()
 
