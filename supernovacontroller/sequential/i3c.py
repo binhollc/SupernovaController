@@ -1478,7 +1478,7 @@ class SupernovaI3CBlockingInterface:
         """
         try:
             responses = self.controller.sync_submit([
-                lambda id: self.driver.i3cBroadcastSETMWL(
+                lambda id: self.driver.i3cBroadcastSETMRL(
                     id,
                     self.push_pull_clock_freq_mhz,
                     self.open_drain_clock_freq_mhz,

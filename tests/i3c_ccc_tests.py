@@ -351,5 +351,31 @@ class TestCCCSupernovaController(unittest.TestCase):
 
         self.assertTupleEqual((success, result), (True, None))
 
+    def test_i3c_ccc_get_set_mrl_mwl(self):
+        if not self.use_simulator:
+            self.skipTest("For simulator only")
+
+        self.i3c.init_bus(3300)
+
+        (success, _) = self.i3c.ccc_broadcast_setmwl(0x0A)
+        self.assertEqual(True, success)
+        (success, _) = self.i3c.ccc_broadcast_setmrl(0x0B)
+        self.assertEqual(True, success)
+
+        result = self.i3c.ccc_getmwl(0x08)
+        self.assertTupleEqual((True, 10), result)
+        result = self.i3c.ccc_getmrl(0x08)
+        self.assertTupleEqual((True, 11), result)
+
+        (success, _) = self.i3c.ccc_unicast_setmwl(0x08, 0x0C)
+        self.assertEqual(True, success)
+        (success, _) = self.i3c.ccc_unicast_setmrl(0x08, 0x0D)
+        self.assertEqual(True, success)
+
+        result = self.i3c.ccc_getmwl(0x08)
+        self.assertTupleEqual((True, 12), result)
+        result = self.i3c.ccc_getmrl(0x08)
+        self.assertTupleEqual((True, 13), result)
+
 if __name__ == "__main__":
     unittest.main()
