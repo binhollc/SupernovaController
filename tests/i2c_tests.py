@@ -5,7 +5,7 @@ from binhosimulators import BinhoSupernovaSimulator
 from supernovacontroller.sequential.i2c import SupernovaI2CBlockingInterface
 from supernovacontroller.sequential.supernova_device import SupernovaDevice
 
-class TestSupernovaController(unittest.TestCase):
+class TestI2CSupernovaController(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """
