@@ -63,6 +63,52 @@ class SupernovaGPIOInterface:
 
         return (True, voltage_mv)
 
+    def use_external_gpio_power_source(self):
+        """
+        Sets the bus to utilize the external power source voltage 
+
+        Returns:
+            tuple: A tuple containing two elements:
+                - The first element is a Boolean indicating the success (True) or failure (False) of the operation.
+                - The second element is either an integer with the bus voltage set in mV indicating success, or an error 
+                message list detailing the failure messages obtained from the device's response.
+        Note:
+        - The voltage used depends upon which hardware revision is connected.
+          - If Rev. B is used, voltage can be set in pins 1 and 2 and is shared with the I3C bus. Pins 3 to 6 are fixed at 3.3 V.
+          - If Rev. C is used, voltage is set and is shared with the SPI, UART, and I2C bus for all pins.
+        """
+
+        set_voltage_method = None
+
+        if self.hardware_version.startswith("HW-B"):
+            set_voltage_method = self.driver.useExternalSourceForI3cBusVoltage
+        elif self.hardware_version.startswith("HW-C"):
+            set_voltage_method = self.driver.useExternalSourceForI2cSpiUartBusVoltage
+        else:
+            raise BackendError(f"Unsupported hardware version: {self.hardware_version}")
+
+        try:
+            responses = self.controller.sync_submit([
+                lambda id: set_voltage_method(id)
+            ])
+        except Exception as e:
+            raise BackendError(original_exception=e) from e
+
+        response = responses[0]
+        errors = []
+
+        if response["usb_error"] != "CMD_SUCCESSFUL":
+            errors.append(response["usb_error"])
+        if response["manager_error"] != "SYS_NO_ERROR":
+            errors.append(response["manager_error"])
+        if response["driver_error"] != "DAC_DRIVER_NO_ERROR":
+            errors.append(response["driver_error"])
+
+        if len(errors) > 0:
+            return (False, errors)
+
+        return (True, response["external_voltage_mV"])
+
     def __check_if_response_is_successful(self, response):
         """
         Checks if the response received from the Supernova indicates successful execution of the GPIO method.

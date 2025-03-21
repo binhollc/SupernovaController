@@ -175,14 +175,50 @@ class TestCCCSupernovaController(unittest.TestCase):
         (success, response) = self.i3c.ccc_broadcast_setxtime(0xDF)
         self.assertTupleEqual((True, None), (success, response))
 
-        # Once getxtime is updated to return the current state, use it here to check the setxtime works (BMC2-1663)
-        # print(self.i3c.ccc_getxtime(0x08))
+        (success, response) = self.i3c.ccc_getxtime(0x08)
+        self.assertEqual(success, True, "Could not getxtime for validation")
 
-        (success, response) = self.i3c.ccc_broadcast_setxtime(0x00, [0xAA, 0xBB])
+        self.assertEqual(response["stateByte"], 2, "xtime state does not match set")
+
+        (success, response) = self.i3c.ccc_broadcast_setxtime(0xFF, [0xAA, 0xBB])
         self.assertTupleEqual((True, None), (success, response))
 
-        # Idem (BMC2-1663)
-        # print(self.i3c.ccc_getxtime(0x08)) 
+        (success, response) = self.i3c.ccc_getxtime(0x08)
+        self.assertEqual(success, True, "Could not getxtime for validation")
+
+        self.assertEqual(response["stateByte"], 0, "xtime state does not match reset")
+
+    def test_i3c_ccc_getxtime(self):
+        if self.use_simulator:
+            self.skipTest("For real device only")
+
+        self.i3c.init_bus(3300)
+        (deviceFound, bmi323) = self.i3c.find_target_device_by_pid(BMI323_DATA["asString"])
+        if not deviceFound:
+            self.skipTest("For BMI323")
+
+        def expected_getxtime_result(expected_state):
+            return {
+                    "supportedModesByte": 3,
+                    "stateByte": expected_state,
+                    "frequency": 6.5,
+                    "inaccuracy": 12
+            }
+
+        (success, response) = self.i3c.ccc_broadcast_setxtime(0xDF)
+        self.assertEqual(True, success)
+
+        (success, response) = self.i3c.ccc_getxtime(bmi323["dynamic_address"])
+        self.assertTupleEqual((success, response), (True, expected_getxtime_result(2)), "got unexpected xtime")
+
+
+        (success, response) = self.i3c.ccc_broadcast_setxtime(0xFF, [0xAA, 0xBB])
+        self.assertEqual(True, success)
+
+        (success, response) = self.i3c.ccc_getxtime(bmi323["dynamic_address"])
+        self.assertTupleEqual((success, response), (True, expected_getxtime_result(0)), "got unexpected xtime")
+
+        self.assertEqual(response["stateByte"], 0, "xtime state does not match reset")
         
     def test_ccc_getpid(self):
         if not self.use_simulator:
