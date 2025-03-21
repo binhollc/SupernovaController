@@ -171,6 +171,39 @@ class SupernovaI2CBlockingInterface:
 
         return result
 
+    def use_external_i2c_power_source(self):
+        """
+        Sets the bus to utilize the external power source voltage 
+
+        Returns:
+            tuple: A tuple containing two elements:
+                - The first element is a Boolean indicating the success (True) or failure (False) of the operation.
+                - The second element is either an integer with the bus voltage set in mV indicating success, or an error 
+                message list detailing the failure messages obtained from the device's response.
+        """
+
+        try:
+            responses = self.controller.sync_submit([
+                lambda id: self.driver.useExternalSourceForI2cSpiUartBusVoltage(id)
+            ])
+        except Exception as e:
+            raise BackendError(original_exception=e) from e
+
+        response = responses[0]
+        errors = []
+
+        if response["usb_error"] != "CMD_SUCCESSFUL":
+            errors.append(response["usb_error"])
+        if response["manager_error"] != "SYS_NO_ERROR":
+            errors.append(response["manager_error"])
+        if response["driver_error"] != "DAC_DRIVER_NO_ERROR":
+            errors.append(response["driver_error"])
+
+        if len(errors) > 0:
+            return (False, errors)
+
+        return (True, response["external_voltage_mV"])
+
     def init_bus(self, voltage: int=None):
         """
         Initializes the bus with a specified voltage, or uses the existing bus voltage if none is provided.
@@ -210,6 +243,7 @@ class SupernovaI2CBlockingInterface:
         return (True, self.bus_voltage)
 
     __pull_up_resistor_values = {
+        "DISABLE" : I2cPullUpResistorsValue.I2C_PULLUP_DISABLE,
         "150" : I2cPullUpResistorsValue.I2C_PULLUP_150Ohm,
         "220" : I2cPullUpResistorsValue.I2C_PULLUP_220Ohm,
         "330" : I2cPullUpResistorsValue.I2C_PULLUP_330Ohm,

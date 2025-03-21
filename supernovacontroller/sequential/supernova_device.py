@@ -1,21 +1,28 @@
-from transfer_controller import TransferController
-from BinhoSupernova import getConnectedSupernovaDevicesList;
-from BinhoSupernova.Supernova import Supernova
-from BinhoSupernova.commands.definitions import GetUsbStringSubCommand
-from BinhoSupernova.utils.system_message import SystemOpcode
-from supernovacontroller.errors import DeviceOpenError
-from supernovacontroller.errors import DeviceNotMountedError
-from supernovacontroller.errors import DeviceAlreadyMountedError
-from supernovacontroller.errors import UnknownInterfaceError
-from supernovacontroller.errors import BackendError
+import inspect
+import os
 import queue
 import threading
+
+from BinhoSupernova import getConnectedSupernovaDevicesList
+from BinhoSupernova.commands.definitions import GetUsbStringSubCommand
+from BinhoSupernova.Supernova import Supernova
+from BinhoSupernova.utils.system_message import SystemOpcode
+from transfer_controller import TransferController
+
+from supernovacontroller.errors import (BackendError,
+                                        DeviceAlreadyMountedError,
+                                        DeviceNotMountedError, DeviceOpenError,
+                                        UnknownInterfaceError)
+
+from ..utils.logging import log_instance_method_calls, logging
+from .gpio import SupernovaGPIOInterface
 from .i2c import SupernovaI2CBlockingInterface
 from .i3c import SupernovaI3CBlockingInterface
-from .uart import SupernovaUARTBlockingInterface
 from .i3c_target import SupernovaI3CTargetBlockingInterface
 from .spi_controller import SupernovaSPIControllerBlockingInterface
-from .gpio import SupernovaGPIOInterface
+from .uart import SupernovaUARTBlockingInterface
+
+logger = logging.getLogger("supernovacontroller")
 
 def id_gen(start=0):
     i = start
@@ -50,6 +57,15 @@ class SupernovaDevice:
         }
 
         self.mounted = False
+
+    @property
+    def driver(self):
+        return self.__driver
+
+    # we override driver setter to wrap with log (if enabled)
+    @driver.setter
+    def driver(self, newDriver):
+        self.__driver = log_instance_method_calls(newDriver, os.environ.get('PYTHON_LOG_PATH') is not None)
 
     def open(self, usb_address=None):
         if self.mounted:
@@ -110,6 +126,49 @@ class SupernovaDevice:
 
         return openedDevices
 
+    def measure_analog_signal(self):
+        """
+        Measures the voltages found in the different pins of the Supernova.
+
+        Returns:
+            tuple: A tuple containing two elements:
+                - The first element is a Boolean indicating the success (True) or failure (False) of the operation.
+                - The second element is either a dictionary with the measured voltages in mV indicating success, or an error 
+                message list detailing the failure messages obtained from the device's response.
+                The dictionary is of shape:
+                {
+                    "i2c_spi_uart_vtarg_mV": Int, 
+                    "i3c_high_voltage_vtarg_mV": Int, 
+                    "i3c_low_voltage_vtarg_mV": Int,
+                }
+                All voltage values are measured and presented in milivolts.
+        """
+        try:
+            responses = self.controller.sync_submit([
+                lambda id: self.driver.getAnalogMeasurements(id),
+            ])
+        except Exception as e:
+            raise BackendError(original_exception=e) from e
+        
+        response = responses[0]
+        errors = []
+
+        if response["usb_error"] != "CMD_SUCCESSFUL":
+            errors.append(response["usb_error"])
+        if response["manager_error"] != "SYS_NO_ERROR":
+            errors.append(response["manager_error"])
+        if response["driver_error"] != "ADC_DRIVER_NO_ERROR":
+            errors.append(response["driver_error"])
+
+        if len(errors) > 0:
+            return (False, errors)
+
+        return (True, {
+            "i2c_spi_uart_vtarg_mV": response["i2c_spi_uart_vtarg_mV"], 
+            "i3c_high_voltage_vtarg_mV": response["i3c_high_voltage_vtarg_mV"], 
+            "i3c_low_voltage_vtarg_mV": response["i3c_low_voltage_vtarg_mV"],
+            })
+
     def get_hardware_version(self):
         """
         Retrieves the hardware version of the connected Supernova device.
@@ -133,6 +192,8 @@ class SupernovaDevice:
             self.notification_handlers[name] = (filter_func, handler_func)
 
     def _push_sdk_response(self, supernova_response, system_message):
+        logger.debug("SDK RESPONSE: supernova_response == %s, system_message == %s", supernova_response, system_message)
+
         if supernova_response:
             # Check if the id is non-zero (zero is reserved for notifications)
             if supernova_response["id"] != 0:
@@ -172,7 +233,6 @@ class SupernovaDevice:
         for name, (filter_func, handler_func) in self.notification_handlers.items():
             if filter_func(name, supernova_response):
                 handler_func(name, supernova_response)
-                break
 
     def create_interface(self, interface_name):
         if not self.mounted:

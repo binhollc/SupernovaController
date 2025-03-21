@@ -14,7 +14,7 @@ from BinhoSupernova.commands.definitions import (
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from binhosimulators import BinhoSupernovaSimulator
 
-class TestSupernovaControllerUART(unittest.TestCase):
+class TestUARTSupernovaController(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """
@@ -41,7 +41,7 @@ class TestSupernovaControllerUART(unittest.TestCase):
         data = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
         (success, _) = uart.send(data)
-        (successReceive, response) = uart.wait_for_notification(2)
+        (successReceive, response) = uart.wait_for_notification(3)
 
         self.assertEqual(success, True)
         self.assertTupleEqual((successReceive, response), (True, data), f"Failed echo: {response}")

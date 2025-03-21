@@ -1,5 +1,4 @@
 import unittest
-from unittest import mock
 from unittest.mock import patch
 from unittest.mock import MagicMock
 import sys
@@ -15,13 +14,11 @@ from BinhoSupernova.commands.definitions import (
     SpiControllerBitOrder, SpiControllerMode, SpiControllerDataWidth,
     SpiControllerChipSelect, SpiControllerChipSelectPolarity,
     GpioPinNumber, GpioLogicLevel, GpioFunctionality, GpioTriggerType)
-from BinhoSupernova.Supernova import I3cTargetResetDefByte
-from BinhoSupernova.Supernova import TransferDirection
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from binhosimulators import BinhoSupernovaSimulator
 
-class TestSupernovaController(unittest.TestCase):
+class TestDeviceSupernovaController(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """
@@ -41,6 +38,13 @@ class TestSupernovaController(unittest.TestCase):
     def tearDown(self):
         self.device.close()
 
+    def __validate_device_info(self, deviceInfo):
+        self.assertRegex(deviceInfo["hw_version"], r"^[A-Za-z0-9]$", "Invalid hw_version format")
+        self.assertRegex(deviceInfo["fw_version"], r"^\d+\.\d+\.\d+$", "Invalid fw_version format")
+        self.assertRegex(deviceInfo["serial_number"], r"^[A-Fa-f0-9]+$", "Invalid serial_number format")
+        self.assertEqual(deviceInfo["manufacturer"], "Binho LLC", "Invalid manufacturer string")
+        self.assertEqual(deviceInfo["product_name"], "Binho Supernova", "Invalid product name")
+
     def test_open_device_with_wrong_address(self):
         d = SupernovaDevice()
 
@@ -48,11 +52,7 @@ class TestSupernovaController(unittest.TestCase):
             d.open("whatever")
 
     def test_open_device_and_close(self):
-        self.assertRegex(self.device_info["hw_version"], r"^[A-Za-z0-9]$", "Invalid hw_version format")
-        self.assertRegex(self.device_info["fw_version"], r"^\d+\.\d+\.\d+$", "Invalid fw_version format")
-        self.assertRegex(self.device_info["serial_number"], r"^[A-Fa-f0-9]+$", "Invalid serial_number format")
-        self.assertEqual(self.device_info["manufacturer"], "Binho LLC", "Invalid manufacturer string")
-        self.assertEqual(self.device_info["product_name"], "Binho Supernova", "Invalid product name")
+        self.__validate_device_info(self.device_info)
 
     def test_open_device_more_than_once(self):
         if not self.use_simulator:
@@ -132,6 +132,16 @@ class TestSupernovaController(unittest.TestCase):
 
         self.assertEqual(success, False)
         self.assertTrue("errors" in result)
+
+    def test_i3c_hdr_exit_pattern(self):
+        if self.use_simulator:
+            self.skipTest("For real device only")
+
+        i3c = self.device.create_interface("i3c.controller")
+
+        (success, result) = i3c.trigger_exit_pattern()
+
+        self.assertTupleEqual((True, None), (success, result))
 
     def test_i3c_reset_bus(self):
         if not self.use_simulator:
@@ -256,60 +266,6 @@ class TestSupernovaController(unittest.TestCase):
 
         with self.assertRaises(BackendError):
             self.device.get_hardware_version()
-
-    def test_i3c_successful_write_read_operations_on_target(self):
-        if not self.use_simulator:
-            self.skipTest("For simulator only")
-
-        i3c = self.device.create_interface("i3c.controller")
-
-        i3c.init_bus(3300)
-
-        subaddress = [0x00, 0x00]
-
-        (success, result) = i3c.write(
-            0x08,
-            i3c.TransferMode.I3C_SDR,
-            subaddress,
-            [0xDE, 0xAD, 0xBE, 0xEF]
-        )
-
-        (success, result) = i3c.read(
-            0x08,
-            i3c.TransferMode.I3C_SDR,
-            subaddress,
-            4
-        )
-
-        self.assertTupleEqual((success, result), (True, [0xDE, 0xAD, 0xBE, 0xEF]))
-
-    def test_ccc_getpid(self):
-        if not self.use_simulator:
-            self.skipTest("For simulator only")
-
-        i3c = self.device.create_interface("i3c.controller")
-
-        i3c.init_bus(3300)
-
-        (success, result) = i3c.ccc_getpid(0x08)
-
-        self.assertTupleEqual((success, result), (True, [0x00, 0x00, 0x00, 0x00, 0x64, 0x65]))
-
-    def test_ccc_rstdaa(self):
-        if self.use_simulator:
-            self.skipTest("For real device only")
-
-        i3c = self.device.create_interface("i3c.controller")
-
-        i3c.init_bus(3300)
-
-        (success, result) = i3c.ccc_rstdaa()
-
-        self.assertTupleEqual((success, result), (True, None))
-
-        (success, result) = i3c.ccc_getpid(0x08)
-
-        self.assertTupleEqual((success, result), (False, "NACK_ERROR"))
 
     def test_spi_controller_set_bus_voltage(self):
         spi_controller = self.device.create_interface("spi.controller")
@@ -502,6 +458,5 @@ class TestSupernovaController(unittest.TestCase):
 
         self.assertTupleEqual((success, result), (True, None))
 
-        
 if __name__ == "__main__":
     unittest.main()

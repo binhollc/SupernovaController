@@ -174,10 +174,10 @@ In an I3C bus, the Supernova can act either as a controller or as a target.
 
    ```python
    # Write data specifying address, mode, register and a list of bytes.
-   i3c.write(0x08, i3c.TransferMode.I3C_SDR, [0x00, 0x00], [0xDE, 0xAD, 0xBE, 0xEF])
+   i3c_controller.write(0x08, i3c_controller.TransferMode.I3C_SDR, [0x00, 0x00], [0xDE, 0xAD, 0xBE, 0xEF])
 
    # Read data specifying address, mode, register and buffer length.
-   success, data = i3c.read(0x08, i3c.TransferMode.I3C_SDR, [0x00, 0x00], 4)
+   success, data = i3c_controller.read(0x08, i3c_controller.TransferMode.I3C_SDR, [0x00, 0x00], 4)
    if success:
        print(f"Read data: {data}")
    ```
