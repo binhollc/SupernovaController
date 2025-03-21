@@ -41,6 +41,13 @@ class TestSupernovaController(unittest.TestCase):
     def tearDown(self):
         self.device.close()
 
+    def __validate_device_info(self, deviceInfo):
+        self.assertRegex(deviceInfo["hw_version"], r"^[A-Za-z0-9]$", "Invalid hw_version format")
+        self.assertRegex(deviceInfo["fw_version"], r"^\d+\.\d+\.\d+$", "Invalid fw_version format")
+        self.assertRegex(deviceInfo["serial_number"], r"^[A-Fa-f0-9]+$", "Invalid serial_number format")
+        self.assertEqual(deviceInfo["manufacturer"], "Binho LLC", "Invalid manufacturer string")
+        self.assertEqual(deviceInfo["product_name"], "Binho Supernova", "Invalid product name")
+
     def test_open_device_with_wrong_address(self):
         d = SupernovaDevice()
 
@@ -48,11 +55,7 @@ class TestSupernovaController(unittest.TestCase):
             d.open("whatever")
 
     def test_open_device_and_close(self):
-        self.assertRegex(self.device_info["hw_version"], r"^[A-Za-z0-9]$", "Invalid hw_version format")
-        self.assertRegex(self.device_info["fw_version"], r"^\d+\.\d+\.\d+$", "Invalid fw_version format")
-        self.assertRegex(self.device_info["serial_number"], r"^[A-Fa-f0-9]+$", "Invalid serial_number format")
-        self.assertEqual(self.device_info["manufacturer"], "Binho LLC", "Invalid manufacturer string")
-        self.assertEqual(self.device_info["product_name"], "Binho Supernova", "Invalid product name")
+        self.__validate_device_info(self.device_info)
 
     def test_open_device_more_than_once(self):
         if not self.use_simulator:
@@ -132,6 +135,16 @@ class TestSupernovaController(unittest.TestCase):
 
         self.assertEqual(success, False)
         self.assertTrue("errors" in result)
+
+    def test_i3c_hdr_exit_pattern(self):
+        if self.use_simulator:
+            self.skipTest("For real device only")
+
+        i3c = self.device.create_interface("i3c.controller")
+
+        (success, result) = i3c.trigger_exit_pattern()
+
+        self.assertTupleEqual((True, None), (success, result))
 
     def test_i3c_reset_bus(self):
         if not self.use_simulator:
@@ -502,6 +515,5 @@ class TestSupernovaController(unittest.TestCase):
 
         self.assertTupleEqual((success, result), (True, None))
 
-        
 if __name__ == "__main__":
     unittest.main()
