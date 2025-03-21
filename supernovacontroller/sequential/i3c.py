@@ -1612,8 +1612,40 @@ class SupernovaI3CBlockingInterface:
 
         return self._process_response("ccc_broadcast_setxtime", responses)
 
-    def ccc_unicast_setxtime(self, target_address):
-        pass # TODO see issue BMC2-1662
+    def ccc_unicast_setxtime(self, target_address, timing_parameter, additional_data = []):
+        """
+        Performs a SETXTIME (Set Exchange Timing) operation to a specific target on the I3C Bus.
+
+        This method sends a direct command to configure exchange timing parameters for in a specific device on the I3C bus.
+        The operation's success status is checked, and it returns a tuple indicating whether the operation
+        was successful along with the relevant data or error message.
+
+        Args:
+            target_address: The address of the target device on the I3C bus to which the SETXTIME command is directed.
+            timing_parameter: The exchange timing parameter to be set for all devices on the I3C bus, A.K.A. the SubCommand Byte.
+            aditional_data (optional): Additional data bytes which may be neccesary for certains Sub-Commands.
+
+        Returns:
+        tuple: A tuple containing two elements:
+            - The first element is a Boolean indicating the success (True) or failure (False) of the operation.
+            - The second element is either an error message detailing the failure or a success message.
+              Specific data is usually not returned in this operation, only the success or failure status.
+        """
+        try:
+            responses = self.controller.sync_submit([
+                lambda id: self.driver.i3cDirectSETXTIME(
+                    id,
+                    target_address,
+                    self.push_pull_clock_freq_mhz,
+                    self.open_drain_clock_freq_mhz,
+                    timing_parameter,
+                    additional_data
+                )
+            ])
+        except Exception as e:
+            raise BackendError(original_exception=e) from e
+
+        return self._process_response("ccc_direct_setxtime", responses)
 
     def ccc_broadcast_setbuscon(self, context: int, data: list = []):
         """
