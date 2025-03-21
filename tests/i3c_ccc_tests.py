@@ -200,7 +200,7 @@ class TestCCCSupernovaController(unittest.TestCase):
         (success, response) = self.i3c.ccc_getxtime(0x08)
         self.assertEqual(success, True, "Could not getxtime for validation")
 
-        self.assertEqual(response["stateByte"], 2, "xtime state does not match set")
+        self.assertEqual(response["currentState"], 2, "xtime state does not match set")
 
         (success, response) = self.i3c.ccc_unicast_setxtime(0x08, 0xFF, [0xAA, 0xBB])
         self.assertTupleEqual((True, None), (success, response))
@@ -208,7 +208,7 @@ class TestCCCSupernovaController(unittest.TestCase):
         (success, response) = self.i3c.ccc_getxtime(0x08)
         self.assertEqual(success, True, "Could not getxtime for validation")
 
-        self.assertEqual(response["stateByte"], 0, "xtime state does not match reset")
+        self.assertEqual(response["currentState"], 0, "xtime state does not match reset")
 
     def test_i3c_ccc_getxtime(self):
         if self.use_simulator:
