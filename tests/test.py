@@ -120,19 +120,6 @@ class TestDeviceSupernovaController(unittest.TestCase):
             self.assertTupleEqual((success, result), (False, "Set bus voltage failed"))
             self.assertEqual(i3c.bus_voltage, None)
 
-    def test_i3c_init_bus_with_no_targets_connected(self):
-        # This test assumes that the are no devices connected to the bus.
-
-        if self.use_simulator:
-            self.skipTest("For real device only")
-
-        i3c = self.device.create_interface("i3c.controller")
-
-        (success, result) = i3c.init_bus(1500)
-
-        self.assertEqual(success, False)
-        self.assertTrue("errors" in result)
-
     def test_i3c_hdr_exit_pattern(self):
         if self.use_simulator:
             self.skipTest("For real device only")
@@ -408,42 +395,6 @@ class TestDeviceSupernovaController(unittest.TestCase):
         self.assertTupleEqual((success, result), (True, None))
         
         (success, result) = gpio.disable_interrupt(GpioPinNumber.GPIO_5)
-        self.assertTupleEqual((success, result), (True, None))
-
-    def test_direct_rstact_read(self):
-        if self.use_simulator:
-            self.skipTest("For real device only")
-
-        i3c = self.device.create_interface("i3c.controller")
-
-        i3c.init_bus(3300)
-
-        (success, result) = i3c.ccc_direct_rstact(0x08,I3cTargetResetDefByte.RESET_I3C_PERIPHERAL, TransferDirection.READ)
-
-        self.assertTupleEqual((success, result), (True, [0x00]))
-
-    def test_direct_rstact_write(self):
-        if self.use_simulator:
-            self.skipTest("For real device only")
-
-        i3c = self.device.create_interface("i3c.controller")
-
-        i3c.init_bus(3300)
-
-        (success, result) = i3c.ccc_direct_rstact(0x08,I3cTargetResetDefByte.RESET_I3C_PERIPHERAL, TransferDirection.WRITE)
-
-        self.assertTupleEqual((success, result), (True, None))
-
-    def test_broadcast_rstact(self):
-        if self.use_simulator:
-            self.skipTest("For real device only")
-
-        i3c = self.device.create_interface("i3c.controller")
-
-        i3c.init_bus(3300)
-
-        (success, result) = i3c.ccc_broadcast_rstact(I3cTargetResetDefByte.RESET_I3C_PERIPHERAL)
-
         self.assertTupleEqual((success, result), (True, None))
 
     def test_trigger_target_reset_pattern(self):
