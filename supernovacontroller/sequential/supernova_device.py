@@ -126,6 +126,49 @@ class SupernovaDevice:
 
         return openedDevices
 
+    def measure_analog_signal(self):
+        """
+        Measures the voltages found in the different pins of the Supernova.
+
+        Returns:
+            tuple: A tuple containing two elements:
+                - The first element is a Boolean indicating the success (True) or failure (False) of the operation.
+                - The second element is either a dictionary with the measured voltages in mV indicating success, or an error 
+                message list detailing the failure messages obtained from the device's response.
+                The dictionary is of shape:
+                {
+                    "i2c_spi_uart_vtarg_mV": Int, 
+                    "i3c_high_voltage_vtarg_mV": Int, 
+                    "i3c_low_voltage_vtarg_mV": Int,
+                }
+                All voltage values are measured and presented in milivolts.
+        """
+        try:
+            responses = self.controller.sync_submit([
+                lambda id: self.driver.getAnalogMeasurements(id),
+            ])
+        except Exception as e:
+            raise BackendError(original_exception=e) from e
+        
+        response = responses[0]
+        errors = []
+
+        if response["usb_error"] != "CMD_SUCCESSFUL":
+            errors.append(response["usb_error"])
+        if response["manager_error"] != "SYS_NO_ERROR":
+            errors.append(response["manager_error"])
+        if response["driver_error"] != "ADC_DRIVER_NO_ERROR":
+            errors.append(response["driver_error"])
+
+        if len(errors) > 0:
+            return (False, errors)
+
+        return (True, {
+            "i2c_spi_uart_vtarg_mV": response["i2c_spi_uart_vtarg_mV"], 
+            "i3c_high_voltage_vtarg_mV": response["i3c_high_voltage_vtarg_mV"], 
+            "i3c_low_voltage_vtarg_mV": response["i3c_low_voltage_vtarg_mV"],
+            })
+
     def get_hardware_version(self):
         """
         Retrieves the hardware version of the connected Supernova device.
@@ -190,7 +233,6 @@ class SupernovaDevice:
         for name, (filter_func, handler_func) in self.notification_handlers.items():
             if filter_func(name, supernova_response):
                 handler_func(name, supernova_response)
-                break
 
     def create_interface(self, interface_name):
         if not self.mounted:

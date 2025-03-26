@@ -49,6 +49,54 @@ This section provides a quick guide to get you started with the `SupernovaContro
 
 Before proceeding, make sure you have installed the `SupernovaController` package as outlined in the Installation section.
 
+## Device Management
+
+The `SupernovaDevice` class provides methods to manage connected Supernova devices. These methods allow you to list all connected devices, open a single device, or open multiple devices programmatically.
+
+### Listing All Connected Devices
+
+The `getAllConnectedSupernovaDevices()` method retrieves a list of all connected Supernova devices.
+
+**Example:**
+```python
+from supernovacontroller.sequential import SupernovaDevice
+
+devices = SupernovaDevice.getAllConnectedSupernovaDevices()
+for device in devices:
+    print(f"Device Path: {device['path']}, Serial Number: {device['serial_number']}")
+```
+
+### Opening a Single Device
+
+To open a single Supernova device, use the `open()` method. Optionally, specify the USB HID path if multiple devices are connected.
+
+**Example:**
+```python
+from supernovacontroller.sequential import SupernovaDevice
+
+device = SupernovaDevice()
+device_info = device.open(usb_address='your_usb_hid_path')  # Replace with the actual USB HID path
+print("Device Info:", device_info)
+device.close()  # Close the device when done
+```
+
+### Opening All Connected Devices
+
+The `openAllConnectedSupernovaDevices()` method opens all connected Supernova devices and returns a list of `SupernovaDevice` instances.
+
+**Example:**
+```python
+from supernovacontroller.sequential import SupernovaDevice
+
+devices = SupernovaDevice.openAllConnectedSupernovaDevices()
+for device in devices:
+    print("Opened device with the following info:")
+    print(device.open())  # Prints device information
+    device.close()  # Close the device when done
+```
+
+These methods simplify working with multiple devices, especially in scenarios where you need to manage several Supernova devices simultaneously.
+
 ## I3C protocol
 
 ### I3C features
@@ -174,10 +222,10 @@ In an I3C bus, the Supernova can act either as a controller or as a target.
 
    ```python
    # Write data specifying address, mode, register and a list of bytes.
-   i3c.write(0x08, i3c.TransferMode.I3C_SDR, [0x00, 0x00], [0xDE, 0xAD, 0xBE, 0xEF])
+   i3c_controller.write(0x08, i3c_controller.TransferMode.I3C_SDR, [0x00, 0x00], [0xDE, 0xAD, 0xBE, 0xEF])
 
    # Read data specifying address, mode, register and buffer length.
-   success, data = i3c.read(0x08, i3c.TransferMode.I3C_SDR, [0x00, 0x00], 4)
+   success, data = i3c_controller.read(0x08, i3c_controller.TransferMode.I3C_SDR, [0x00, 0x00], 4)
    if success:
        print(f"Read data: {data}")
    ```
@@ -553,7 +601,6 @@ In a SPI bus, the Supernova can act as a controller.
     # response: [0x00, 0x00, 0x00, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF]
     data_from_target = response[3:]
     ```
-
 
 ## GPIO
 

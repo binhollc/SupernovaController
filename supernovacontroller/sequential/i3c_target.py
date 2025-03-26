@@ -106,6 +106,8 @@ class SupernovaI3CTargetBlockingInterface:
         self.mem_layout = I3cTargetMemoryLayout_t.MEM_2_BYTES
         # I3C target notification handler
         self.i3c_notification = I3CTargetNotificationHandler(notification_subscription)
+        self.voltage = None
+
  
     def target_init(self, memory_layout: I3cTargetMemoryLayout_t, useconds_to_wait_for_ibi, max_read_length, max_write_length, features):
         """
@@ -140,6 +142,42 @@ class SupernovaI3CTargetBlockingInterface:
 
         status = responses[0]["result"]
         return (status == "I3C_TARGET_INIT_SUCCESS", status)
+
+    def set_voltage(self, voltage: int):
+        """
+        Sets the voltage to a specified value.
+        The voltage of the instance is updated only if the operation is successful.
+
+        Args:
+        voltage (int): The voltage value to be set in mV.
+
+        Returns:
+        tuple: A tuple containing two elements:
+            - The first element is a Boolean indicating the success (True) or failure (False) of the operation.
+            - The second element is either the new voltage indicating success, or an error message
+                detailing the failure, obtained from the device's response.
+
+        Note:
+        - The method assumes that the input voltage value is valid and does not perform any validation.
+        Users of this method should ensure that the provided voltage value is within acceptable limits.
+        """
+        try:
+            responses = self.controller.sync_submit([
+                lambda id: self.driver.setI3cBusVoltage(id, voltage)
+            ])
+        except Exception as e:
+            raise BackendError(original_exception=e) from e
+
+        response_ok = responses[0]["name"] == "SET I3C BUS VOLTAGE" and responses[0]["result"] == "SYS_NO_ERROR"
+        if response_ok:
+            result = (True, voltage)
+            # We want to set the bus_voltage when we know the operation was successful
+            self.voltage = voltage
+        else:
+            result = (False, "Set bus voltage failed")
+            self.voltage = None
+
+        return result
 
     def set_pid(self, pid: list):
         """

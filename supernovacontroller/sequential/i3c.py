@@ -193,6 +193,49 @@ class SupernovaI3CBlockingInterface:
 
         return result
 
+    def use_external_i3c_power_source(self):
+        """
+        Sets the bus to utilize the external power source voltage 
+
+        Returns:
+            tuple: A tuple containing two elements:
+                - The first element is a Boolean indicating the success (True) or failure (False) of the operation.
+                - The second element is either a dictionary with the bus voltage indicating success, or an error 
+                message list detailing the failure messages obtained from the device's response.
+                - The resulting dictionary is of shape 
+                    {
+                    "external_high_voltage_mV": Int,
+                    "external_low_voltage_mV": Int,
+                    }
+                    Where it each field represents the voltage set in the high and low voltage ports, in mV
+        """
+
+        try:
+            responses = self.controller.sync_submit([
+                lambda id: self.driver.useExternalSourceForI3cBusVoltage(id)
+            ])
+        except Exception as e:
+            raise BackendError(original_exception=e) from e
+
+        response = responses[0]
+        errors = []
+
+        if response["usb_error"] != "CMD_SUCCESSFUL":
+            errors.append(response["usb_error"])
+        if response["manager_error"] != "SYS_NO_ERROR":
+            errors.append(response["manager_error"])
+        if response["driver_error"] != "DAC_DRIVER_NO_ERROR":
+            errors.append(response["driver_error"])
+
+        if len(errors) > 0:
+            return (False, errors)
+
+        return (True,
+        {
+            "external_high_voltage_mV": response["external_high_voltage_mV"],
+            "external_low_voltage_mV": response["external_low_voltage_mV"],
+        })
+
     def reset_bus(self):
         """
         Resets the I3C bus to its default state.
@@ -220,6 +263,50 @@ class SupernovaI3CBlockingInterface:
             result = (False, responses[0]["errors"])
 
         return result
+
+    def get_i3c_connector_status(self):
+        """
+        Retrieves the current status of the I3C connector ports. 
+
+        Returns:
+            tuple: A tuple containing two elements:
+                - The first element is a Boolean indicating the success (True) or failure (False) of the operation.
+                - The second element is either a dictionary, or an error message detailing the failure,
+                obtained from the device's response.
+                The dictionary entry contains formatted information about the ports, with the shape:
+                {
+                    "i3c_low_voltage_port_status" : String
+                    "i3c_high_voltage_port_status" : String
+                }
+                The possible values are Strings with the connected connector type, if any. These can be:
+                'CONNECTOR_IDENTIFICATION_NOT_SUPPORTED', 'I3C_HARNESS', 'QWIIC_ADAPTOR', 
+                'SENSEPEEK_PROBES', 'NO_CONNECTOR' or 'ERROR_IDENTIFYING_CONNECTOR'
+        """
+        
+        try:
+            responses = self.controller.sync_submit([
+                lambda id: self.driver.getI3cConnectorsStatus(id)
+            ])
+        except Exception as e:
+            raise BackendError(original_exception=e) from e
+        
+        response = responses[0]
+        errors = []
+        if response["usb_error"] != "CMD_SUCCESSFUL":
+            errors.append(response["usb_error"]) 
+        if response["manager_error"] != "SYS_NO_ERROR":
+            errors.append(response["manager_error"]) 
+        if response["driver_error"] != "DRIVER_NO_ERROR":
+            errors.append(response["driver_error"]) 
+        
+        if len(errors) > 0:
+            return (False, errors)
+        
+        result = {
+            "i3c_low_voltage_port_status" : response["i3c_low_voltage_port"]["connector_type"],
+            "i3c_high_voltage_port_status" : response["i3c_high_voltage_port"]["connector_type"],
+        }
+        return (True, result)
 
     def targets(self):
         """
@@ -480,6 +567,14 @@ class SupernovaI3CBlockingInterface:
                 return response["data"] if response["descriptor"] and response["descriptor"]["dataLength"] > 0 else None
             elif command_name in ["ccc_unicast_setmrl", "ccc_unicast_setmwl", "ccc_broadcast_setmwl", "ccc_broadcast_setmrl"]:
                 return response["data"]
+            elif command_name == "ccc_getxtime":
+                return {
+                    "supportedModesByte": response["supportedModes"]["value"][1],
+                    "stateByte": response["state"]["value"][1],
+                    "frequency": response["frequency"]["value"] * 0.5, # in MHz
+                    "inaccuracy": response["inaccuracy"]["value"] * 0.1 # in %
+                }
+            
             return None
         def format_error_response_payload(command_name, response):
             error_data = None
@@ -853,20 +948,32 @@ class SupernovaI3CBlockingInterface:
 
     def ccc_getxtime(self, target_address):
         """
-        Performs a GETXTIME (Get Extra Timing Information) operation on a target device on the I3C bus.
+        Performs a GETXTIME (Get Exchange Timing Information) operation on a target device on the I3C bus.
 
-        This method requests the Extra Timing Information from the specified target device.
+        This method requests the Exchange Timing Information from the specified target device.
         The operation's success status is checked, and it returns a tuple indicating whether the operation
         was successful along with the relevant data or error message.
 
         Args:
-        target_address: The address of the target device on the I3C bus from which the Extra Timing Information is requested.
+        target_address: The address of the target device on the I3C bus from which the Exchange Timing Information is requested.
 
         Returns:
-            tuple: A tuple containing two elements:
-                - The first element is a Boolean indicating the success (True) or failure (False) of the operation.
-                - The second element is either a dictionary containing the Extra Timing Information Bytes as int, indicating
-                    success, or an error message detailing the failure.
+        tuple: A tuple containing two elements:
+            - The first element is a Boolean indicating the success (True) or failure (False) of the operation.
+            - The second element is either a dictionary containing the Exchange Timing Information and its length, indicating
+                success, or an error message detailing the failure. The dictionary is of shape:
+                ```
+                {
+                    "supportedModesByte": int,
+                    "stateByte": int,
+                    "frequency": int
+                    "inaccuracy": int
+                }
+                ```
+        Notes:
+            - The supportedModesByte and StateBytes fields in the result dictionary are the decimal values of said bytes
+            - The frequency field in the result dictionary is the obtained frequency in MHz
+            - The inaccuracy field in the result dictionary is the obtained inaccuracy as a percentage
         """
         try:
             responses = self.controller.sync_submit([
@@ -1371,7 +1478,7 @@ class SupernovaI3CBlockingInterface:
         """
         try:
             responses = self.controller.sync_submit([
-                lambda id: self.driver.i3cBroadcastSETMWL(
+                lambda id: self.driver.i3cBroadcastSETMRL(
                     id,
                     self.push_pull_clock_freq_mhz,
                     self.open_drain_clock_freq_mhz,
@@ -1505,8 +1612,40 @@ class SupernovaI3CBlockingInterface:
 
         return self._process_response("ccc_broadcast_setxtime", responses)
 
-    def ccc_unicast_setxtime(self, target_address):
-        pass # TODO see issue BMC2-1662
+    def ccc_unicast_setxtime(self, target_address, timing_parameter, additional_data = []):
+        """
+        Performs a SETXTIME (Set Exchange Timing) operation to a specific target on the I3C Bus.
+
+        This method sends a direct command to configure exchange timing parameters for in a specific device on the I3C bus.
+        The operation's success status is checked, and it returns a tuple indicating whether the operation
+        was successful along with the relevant data or error message.
+
+        Args:
+            target_address: The address of the target device on the I3C bus to which the SETXTIME command is directed.
+            timing_parameter: The exchange timing parameter to be set for all devices on the I3C bus, A.K.A. the SubCommand Byte.
+            aditional_data (optional): Additional data bytes which may be neccesary for certains Sub-Commands.
+
+        Returns:
+        tuple: A tuple containing two elements:
+            - The first element is a Boolean indicating the success (True) or failure (False) of the operation.
+            - The second element is either an error message detailing the failure or a success message.
+              Specific data is usually not returned in this operation, only the success or failure status.
+        """
+        try:
+            responses = self.controller.sync_submit([
+                lambda id: self.driver.i3cDirectSETXTIME(
+                    id,
+                    target_address,
+                    self.push_pull_clock_freq_mhz,
+                    self.open_drain_clock_freq_mhz,
+                    timing_parameter,
+                    additional_data
+                )
+            ])
+        except Exception as e:
+            raise BackendError(original_exception=e) from e
+
+        return self._process_response("ccc_direct_setxtime", responses)
 
     def ccc_broadcast_setbuscon(self, context: int, data: list = []):
         """
